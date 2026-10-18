@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+<defs>
+<linearGradient id="sky" x2="0" y2="1"><stop stop-color="#c1d5df"/><stop offset="1" stop-color="#edf1eb"/></linearGradient>
+<linearGradient id="ground" x2=".2" y2="1"><stop stop-color="#b9b9b1"/><stop offset="1" stop-color="#d6d4cb"/></linearGradient>
+<linearGradient id="wall" x2="1" y2="1"><stop stop-color="#d8d9cf"/><stop offset="1" stop-color="#b7bfb9"/></linearGradient>
+<linearGradient id="door" x2="1" y2="0"><stop stop-color="#87968f"/><stop offset="1" stop-color="#a6b0a6"/></linearGradient>
+<pattern id="siding" width="20" height="15" patternUnits="userSpaceOnUse"><path d="M0 14.5h20" stroke="#8b9a91" stroke-opacity=".2"/></pattern>
+<pattern id="gravel" width="73" height="67" patternUnits="userSpaceOnUse"><circle cx="12" cy="8" r="1" fill="#788278" opacity=".2"/><circle cx="54" cy="39" r="1.5" fill="#fff" opacity=".3"/><path d="m25 48 3 1m33-31 2 2m-44 9h2" stroke="#7c8379" stroke-opacity=".2"/></pattern>
+<pattern id="fence" width="24" height="40" patternUnits="userSpaceOnUse"><path d="m0 0 24 40m0 0-24 40m24-40L0 40m24-40 24 40" stroke="#7f9390" stroke-width="1.2" opacity=".5"/></pattern>
+<filter id="cloud"><feGaussianBlur stdDeviation="16"/></filter>
+<filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".65" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope=".045"/></feComponentTransfer><feBlend in="SourceGraphic" mode="multiply"/></filter>
+</defs>
+<g filter="url(#grain)">
+<path fill="url(#sky)" d="M0 0h1600v1000H0z"/>
+<g fill="#fff" opacity=".45" filter="url(#cloud)"><ellipse cx="355" cy="120" rx="280" ry="35"/><ellipse cx="1260" cy="240" rx="300" ry="38"/></g>
+<path d="m0 490 120-40 85 14 95-50 100 42 90-29 118 54 122-10 121 52 124-41 137 29 100-42 168 18 120-39 100 51v170H0Z" fill="#9eafa0"/>
+<path d="m0 533 128-28 111 30 117-23 119 35 117-32 127 32 148-29 95 30 122-21 89 27 132-30 95 15 100-20v180H0Z" fill="#7d9482"/>
+<path d="M0 583 1600 570v430H0Z" fill="url(#ground)"/><path d="M0 583 1600 570v430H0Z" fill="url(#gravel)"/>
+<path d="m0 220 930 98 237-60-933-85Z" fill="#899992"/>
+<path d="m0 233 930 99v314L0 685Z" fill="url(#wall)"/><path d="m0 233 930 99v314L0 685Z" fill="url(#siding)"/>
+<path d="m930 332 237-60v336l-237 38Z" fill="#a5b1a7"/><path d="m-10 218 941 99 247-61v18l-246 64L-10 239Z" fill="#596e67"/>
+<path d="m0 650 930-29 237-39v26l-237 38L0 685Z" fill="#7f8c84"/>
+<path d="m68 347 276 23v273L68 655Z" fill="#647a70"/><path d="m78 356 256 21v255L78 644Z" fill="url(#door)"/>
+<g stroke="#6d8075" stroke-width="2" opacity=".55"><path d="m79 383 254 20m-254 6 254 18m-254 8 254 17m-254 9 254 15m-254 11 254 13m-254 13 254 11m-254 15 254 10m-254 16 254 8m-254 18 254 5m-254 21 254 4"/></g>
+<path d="m445 385 193 14v127l-193-4Z" fill="#5c746e"/><path d="m453 394 177 13v111l-177-4Z" fill="#a6c0be"/><path d="m453 445 177 8m-118-54v117m60-111v113" stroke="#718980" stroke-width="6"/>
+<path d="m760 422 105 6v197l-105 4Z" fill="#71867b"/><path d="m768 430 90 5v182l-90 3Z" fill="#91a096"/><path d="m843 515 7 1v18l-7-1Z" fill="#c9d1c5"/>
+<path d="m688 354 12 2v279l-12 2Z" fill="#a0afa3"/><path d="m692 368 95 8v12l-95-8Z" fill="#81988d"/>
+<g fill="#7d9286"><path d="m973 383 58-15v75l-58 13Z"/><path d="m1081 357 48-12v70l-48 11Z"/></g><g fill="#acc4bd"><path d="m979 388 45-11v60l-45 10Z"/><path d="m1087 362 36-9v57l-36 8Z"/></g>
+<path d="m1173 597 427-1v77l-427-31Z" fill="url(#fence)"/><g stroke="#667e75" fill="none"><path d="m1173 586 427 3m-427 51 427 33" stroke-width="4"/><path d="M1173 582v68m112-65v76m121-74v82m138-81v93" stroke-width="5"/></g>
+<path d="m1389 452 9-2v153l-9-1Z" fill="#8b978d"/><path d="m1338 451 118-3v8l-118 3Z" fill="#87998d"/><path d="m1393 451-226-88m226 88 207-52" stroke="#8a9c93" stroke-width="1.6" fill="none"/>
+<path d="m0 685 931-39 236-38-37 26-251 48L0 756Z" fill="#69796d" opacity=".14"/>
+<g fill="none" stroke="#a3a69c" stroke-width="2" opacity=".65"><path d="m0 886 1600-125M584 662l-50 338m688-376 282 376"/></g>
+<path d="m330 926 83-8 102-142-61 4Z" fill="#eceadf" opacity=".9"/><path d="m1174 852 89-8 32 52-96 9Z" fill="#eceadf" opacity=".9"/>
+<path d="m0 985 1600-143v158H0Z" fill="#c4c7bc" opacity=".2"/>
+</g></svg>
