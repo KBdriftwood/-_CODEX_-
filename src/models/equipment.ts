@@ -174,30 +174,6 @@ export async function createEquipment(
   return wrapper;
 }
 
-export function createContactShadow() {
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = 128;
-  const ctx = canvas.getContext("2d")!;
-  const gradient = ctx.createRadialGradient(64, 64, 8, 64, 64, 64);
-  gradient.addColorStop(0, "rgba(16,25,30,0.34)");
-  gradient.addColorStop(0.55, "rgba(16,25,30,0.18)");
-  gradient.addColorStop(1, "rgba(16,25,30,0)");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, 128, 128);
-  const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(5.3, 2.6),
-    new THREE.MeshBasicMaterial({
-      map: new THREE.CanvasTexture(canvas),
-      transparent: true,
-      depthWrite: false,
-    }),
-  );
-  mesh.rotation.x = -Math.PI / 2;
-  mesh.position.y = -0.01;
-  mesh.renderOrder = -1;
-  return mesh;
-}
-
 export function disposeObject(object: THREE.Object3D) {
   object.traverse((child) => {
     if (!(child instanceof THREE.Mesh || child instanceof THREE.Line)) return;

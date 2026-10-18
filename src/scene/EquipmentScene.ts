@@ -1,11 +1,8 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { BULK_MODEL, getDefinition } from "../models/catalog";
-import {
-  createContactShadow,
-  createEquipment,
-  disposeObject,
-} from "../models/equipment";
+import { createEquipment, disposeObject } from "../models/equipment";
+import { GroundShadow, KEY_LIGHT_POSITION } from "./GroundShadow";
 import { DEFAULT_STATE, type EditorState } from "../state/editor";
 import type { PlacedEquipment } from "../state/editor";
 
@@ -15,6 +12,7 @@ export class EquipmentScene {
   readonly camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
   private readonly anchor = new THREE.Group();
   private readonly equipment = new THREE.Group();
+  private readonly anchorShadow = new GroundShadow();
   private readonly environment: THREE.WebGLRenderTarget;
   private state: EditorState = { ...DEFAULT_STATE };
   private aspect = 1.6;
@@ -27,6 +25,7 @@ export class EquipmentScene {
       root: THREE.Group;
       object: THREE.Group;
       item: PlacedEquipment;
+      shadow: GroundShadow;
     }
   >();
   private itemRevision = 0;
@@ -55,9 +54,9 @@ export class EquipmentScene {
     pmrem.dispose();
     this.scene.add(new THREE.HemisphereLight("#ffffff", "#748291", 2.2));
     const key = new THREE.DirectionalLight("#fff4dc", 3);
-    key.position.set(-4, 7, 5);
+    key.position.set(...KEY_LIGHT_POSITION);
     this.scene.add(key);
-    this.anchor.add(createContactShadow(), this.equipment);
+    this.anchor.add(this.anchorShadow, this.equipment);
     this.scene.add(this.anchor);
   }
 
@@ -85,14 +84,9 @@ export class EquipmentScene {
           const definition = getDefinition(item.modelId);
           const object = await createEquipment(definition, item);
           const root = new THREE.Group();
-          const shadow = createContactShadow();
-          shadow.scale.set(
-            Math.max(0.25, definition.dimensions.length / 4),
-            Math.max(0.2, definition.dimensions.diameter / 1.4),
-            1,
-          );
+          const shadow = new GroundShadow();
           root.add(shadow, object);
-          return { key, root, object, item, fresh: true };
+          return { key, root, object, item, shadow, fresh: true };
         }),
       );
       if (this.disposed || revision !== this.itemRevision) {
@@ -199,6 +193,11 @@ export class EquipmentScene {
       radians(state.roll),
       "YXZ",
     );
+    if (!this.multiple)
+      this.anchorShadow.updateFor(
+        this.equipment,
+        `${state.pitch}:${state.yaw}:${state.roll}`,
+      );
     if (this.multiple)
       for (const node of this.nodes.values()) {
         const value = node.item.state;
@@ -224,6 +223,10 @@ export class EquipmentScene {
           radians(value.yaw),
           radians(value.roll),
           "YXZ",
+        );
+        node.shadow.updateFor(
+          node.object,
+          `${value.pitch}:${value.yaw}:${value.roll}`,
         );
       }
     this.render();

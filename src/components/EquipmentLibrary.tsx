@@ -1,5 +1,5 @@
 import { Box, Copy, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { EQUIPMENT_CATALOG, getDefinition } from "../models/catalog";
 import type { PlacedEquipment } from "../state/editor";
 
@@ -11,6 +11,46 @@ interface Props {
   onDelete: () => void;
   onDuplicate: () => void;
   onPatch: (id: string, value: Partial<PlacedEquipment>) => void;
+}
+
+function PipeLengthInput({
+  value,
+  onCommit,
+}: {
+  value: number;
+  onCommit: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => setDraft(String(value)), [value]);
+  const commit = () => {
+    if (draft.trim() === "" || !Number.isFinite(Number(draft))) {
+      setDraft(String(value));
+      return;
+    }
+    const normalized =
+      Math.round(Math.max(0.2, Math.min(12, Number(draft))) * 10) / 10;
+    onCommit(normalized);
+    setDraft(String(normalized));
+  };
+  return (
+    <input
+      aria-label="配管の仮長さ"
+      type="number"
+      min="0.2"
+      max="12"
+      step="0.1"
+      value={draft}
+      onFocus={(event) => event.currentTarget.select()}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          event.currentTarget.blur();
+        }
+      }}
+    />
+  );
 }
 
 export function EquipmentLibrary({
@@ -118,25 +158,10 @@ export function EquipmentLibrary({
             <div className="pipe-options">
               <label>
                 配管の仮長さ（m）
-                <input
-                  aria-label="配管の仮長さ"
-                  type="number"
-                  min="0.2"
-                  max="12"
-                  step="0.1"
+                <PipeLengthInput
+                  key={selected.id}
                   value={selected.length}
-                  onChange={(event) => {
-                    if (Number.isFinite(event.target.valueAsNumber))
-                      onPatch(selected.id, {
-                        length:
-                          Math.round(
-                            Math.max(
-                              0.2,
-                              Math.min(12, event.target.valueAsNumber),
-                            ) * 10,
-                          ) / 10,
-                      });
-                  }}
+                  onCommit={(length) => onPatch(selected.id, { length })}
                 />
               </label>
               <label>
@@ -156,6 +181,9 @@ export function EquipmentLibrary({
                   <option value="u">コの字</option>
                 </select>
               </label>
+              <p className="field-note pipe-length-note">
+                長さはEnterキー、または入力欄を離れると反映します。
+              </p>
             </div>
           )}
           <details className="model-details">

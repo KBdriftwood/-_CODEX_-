@@ -121,6 +121,20 @@ test("単一HTMLの内容だけで、ネット未接続でも写真・修復・3
   await page.getByLabel("追加する設備").selectOption("vaporizer");
   await page.getByRole("button", { name: "設備を追加", exact: true }).click();
   await expect(page.locator(".placed-row")).toHaveCount(2);
+  await page.getByLabel("追加する設備").selectOption("gas-pipe");
+  await page.getByRole("button", { name: "設備を追加", exact: true }).click();
+  const length = page.getByLabel("配管の仮長さ", { exact: true });
+  await length.fill("");
+  await expect(length).toHaveValue("");
+  await length.pressSequentially("6.8");
+  await length.press("Enter");
+  await expect(length).toHaveValue("6.8");
+  await page.getByLabel("配管の形状").selectOption("u");
+  await page.getByRole("button", { name: "設備の回転", exact: true }).click();
+  await page.getByLabel("左右の回転", { exact: true }).fill("60");
+  await page.getByLabel("左右の回転", { exact: true }).press("Tab");
+  await expect(page.locator(".placed-row")).toHaveCount(3);
+
   await page.getByRole("button", { name: "2 比較・提案書" }).click();
   await page
     .getByRole("button", { name: "A4横・左右に比較", exact: true })

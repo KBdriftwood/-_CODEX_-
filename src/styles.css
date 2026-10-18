@@ -1783,3 +1783,7 @@ fieldset.mode-fields {
     overflow: visible;
   }
 }
+.pipe-length-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
