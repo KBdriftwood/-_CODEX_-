@@ -1,5 +1,30 @@
 export type Mode = "move" | "rotate" | "camera";
 
+export interface PlacedEquipment {
+  id: string;
+  modelId: string;
+  state: EditorState;
+  visible: boolean;
+  length: number;
+  pipeShape: "straight" | "elbow" | "u";
+}
+
+export const CAMERA_KEYS = ["azimuth", "elevation", "fov"] as const;
+
+export function newEquipment(
+  modelId = "vertical-bulk",
+  index = 0,
+): PlacedEquipment {
+  return {
+    id: crypto.randomUUID(),
+    modelId,
+    state: { ...DEFAULT_STATE, x: 54 + (index % 4) * 3, y: 75 },
+    visible: true,
+    length: 2.5,
+    pipeShape: "straight",
+  };
+}
+
 export interface EditorState {
   x: number;
   y: number;

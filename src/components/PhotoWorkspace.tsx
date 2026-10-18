@@ -18,7 +18,7 @@ import {
   Upload,
 } from "lucide-react";
 import type { Photo } from "../lib/photo";
-import { exportPng } from "../export/exportPng";
+import { composeImage, exportPng } from "../export/exportPng";
 import { EquipmentScene } from "../scene/EquipmentScene";
 import {
   dragState,
@@ -26,6 +26,7 @@ import {
   updateValue,
   type EditorState,
   type Mode,
+  type PlacedEquipment,
 } from "../state/editor";
 import { MODES } from "./ControlPanel";
 
@@ -34,15 +35,18 @@ interface Props {
   state: EditorState;
   mode: Mode;
   loading: boolean;
-  onState: (state: EditorState) => void;
+  onState: (state: EditorState, id?: string) => void;
   onUpload: () => void;
   onSample: () => void;
   onReady: (ready: boolean) => void;
   onError: (message: string) => void;
+  items?: PlacedEquipment[];
+  onSelect?: (id: string) => void;
 }
 
 export interface WorkspaceHandle {
   save: () => Promise<{ width: number; height: number }>;
+  snapshot: () => Promise<HTMLCanvasElement>;
 }
 
 export const PhotoWorkspace = forwardRef<WorkspaceHandle, Props>(
@@ -57,6 +61,8 @@ export const PhotoWorkspace = forwardRef<WorkspaceHandle, Props>(
       onSample,
       onReady,
       onError,
+      items,
+      onSelect,
     },
     ref,
   ) {
@@ -68,6 +74,7 @@ export const PhotoWorkspace = forwardRef<WorkspaceHandle, Props>(
     const [bounds, setBounds] = useState({ width: 900, height: 600 });
     const [dragging, setDragging] = useState(false);
     const [sceneError, setSceneError] = useState(false);
+    const failed = useRef(false);
     const drag = useRef<{
       x: number;
       y: number;
@@ -76,6 +83,7 @@ export const PhotoWorkspace = forwardRef<WorkspaceHandle, Props>(
       width: number;
       height: number;
       pointer: number;
+      itemId?: string;
     } | null>(null);
     const callbacks = useRef({ onReady, onError });
     callbacks.current = { onReady, onError };
@@ -95,9 +103,11 @@ export const PhotoWorkspace = forwardRef<WorkspaceHandle, Props>(
 
     useEffect(() => {
       let active = true;
+      failed.current = false;
       let scene: EquipmentScene | undefined;
       const fail = () => {
         if (!active) return;
+        failed.current = true;
         setSceneError(true);
         callbacks.current.onReady(false);
         callbacks.current.onError(
@@ -122,7 +132,7 @@ export const PhotoWorkspace = forwardRef<WorkspaceHandle, Props>(
         scene
           .load()
           .then(() => {
-            if (active) {
+            if (active && !failed.current) {
               scene!.update(latestState.current);
               callbacks.current.onReady(true);
             }
@@ -146,6 +156,22 @@ export const PhotoWorkspace = forwardRef<WorkspaceHandle, Props>(
     useEffect(() => {
       sceneRef.current?.update(state);
     }, [state]);
+    useEffect(() => {
+      if (!items || !sceneRef.current) return;
+      let active = true;
+      callbacks.current.onReady(false);
+      sceneRef.current
+        .setItems(items)
+        .then(() => {
+          if (active && !failed.current) callbacks.current.onReady(true);
+        })
+        .catch(() => {
+          if (active) callbacks.current.onError("設備を表示できませんでした。");
+        });
+      return () => {
+        active = false;
+      };
+    }, [items]);
     useImperativeHandle(
       ref,
       () => ({
@@ -153,8 +179,16 @@ export const PhotoWorkspace = forwardRef<WorkspaceHandle, Props>(
           if (!photo || !sceneRef.current)
             throw new Error("写真と3Dモデルを読み込んでから保存してください。");
           // 入力直後でも、保存に使う状態を画面と一致させる。
+          await sceneRef.current.settle();
           sceneRef.current.update(state);
           return exportPng(photo, sceneRef.current);
+        },
+        snapshot: async () => {
+          if (!photo || !sceneRef.current)
+            throw new Error("写真を読み込んでください。");
+          await sceneRef.current.settle();
+          sceneRef.current.update(state);
+          return composeImage(photo, sceneRef.current, 2400);
         },
       }),
       [photo, state],
@@ -172,14 +206,36 @@ export const PhotoWorkspace = forwardRef<WorkspaceHandle, Props>(
       event.currentTarget.focus({ preventScroll: true });
       event.currentTarget.setPointerCapture(event.pointerId);
       const rect = event.currentTarget.getBoundingClientRect();
+      const picked =
+        mode !== "camera"
+          ? sceneRef.current.pick(
+              (event.clientX - rect.x) / rect.width,
+              (event.clientY - rect.y) / rect.height,
+            )
+          : null;
+      const pickedItem = items?.find((item) => item.id === picked);
+      if (picked) onSelect?.(picked);
       drag.current = {
         x: event.clientX,
         y: event.clientY,
-        state: { ...state },
+        state: {
+          ...state,
+          ...(pickedItem
+            ? {
+                x: pickedItem.state.x,
+                y: pickedItem.state.y,
+                size: pickedItem.state.size,
+                yaw: pickedItem.state.yaw,
+                pitch: pickedItem.state.pitch,
+                roll: pickedItem.state.roll,
+              }
+            : {}),
+        },
         mode,
         width: rect.width,
         height: rect.height,
         pointer: event.pointerId,
+        itemId: picked ?? undefined,
       };
       setDragging(true);
     };
@@ -196,6 +252,7 @@ export const PhotoWorkspace = forwardRef<WorkspaceHandle, Props>(
           current.height,
           event.shiftKey,
         ),
+        current.itemId,
       );
     };
     const pointerEnd = (event: PointerEvent<HTMLDivElement>) => {

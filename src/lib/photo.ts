@@ -68,5 +68,5 @@ export async function loadPhoto(file: File): Promise<Photo> {
 }
 
 export function releasePhoto(photo: Photo | null) {
-  if (photo && !photo.sample) URL.revokeObjectURL(photo.url);
+  if (photo?.url.startsWith("blob:")) URL.revokeObjectURL(photo.url);
 }

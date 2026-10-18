@@ -1,14 +1,11 @@
 import {
-  Box,
-  Check,
-  ChevronDown,
   CircleHelp,
   Move,
   Rotate3D,
   ScanEye,
   SlidersHorizontal,
 } from "lucide-react";
-import { BULK_MODEL } from "../models/catalog";
+import type { ReactNode } from "react";
 import type { EditorState, Mode } from "../state/editor";
 import { Adjustment } from "./Adjustment";
 
@@ -38,56 +35,18 @@ interface Props {
   state: EditorState;
   setMode: (mode: Mode) => void;
   onChange: (key: keyof EditorState, value: number) => void;
+  library?: ReactNode;
+  selected?: boolean;
 }
 
-export function TankThumbnail() {
-  return (
-    <svg viewBox="0 0 150 105" fill="none" aria-hidden="true">
-      <defs>
-        <linearGradient
-          id="tank-shade"
-          x1="65"
-          y1="27"
-          x2="65"
-          y2="75"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop stopColor="#fff" />
-          <stop offset="0.5" stopColor="#dce5e8" />
-          <stop offset="1" stopColor="#a4b4bb" />
-        </linearGradient>
-      </defs>
-      <ellipse cx="77" cy="87" rx="57" ry="6" fill="#d7e2e5" />
-      <path d="M46 67v17h12V67m39-2v17h12V65" fill="#a8b8bf" stroke="#849ba7" />
-      <path d="m41 84 19-2 3 4-20 2zm51-2 19-2 3 4-20 2z" fill="#55717d" />
-      <path
-        d="M31 36 105 25c16-2 25 7 25 21s-8 22-21 24L36 80C9 84 7 41 31 36Z"
-        fill="url(#tank-shade)"
-        stroke="#91a7b1"
-        strokeWidth="1.2"
-      />
-      <ellipse
-        cx="31"
-        cy="58"
-        rx="17"
-        ry="22"
-        fill="url(#tank-shade)"
-        stroke="#91a7b1"
-      />
-      <path d="m45 34 2 43m52-51 3 44" stroke="#9aadb6" strokeWidth="2" />
-      <path d="m60 48 30-4v14l-30 4z" fill="#235266" />
-      <path d="m66 51 18-3m-18 7 13-2" stroke="#d9ecec" strokeWidth="2" />
-      <path
-        d="M73 30v-9m-6 0 13-2"
-        stroke="#7d775c"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-export function ControlPanel({ mode, state, setMode, onChange }: Props) {
+export function ControlPanel({
+  mode,
+  state,
+  setMode,
+  onChange,
+  library,
+  selected = true,
+}: Props) {
   const adjustment = (
     field: keyof EditorState,
     label: string,
@@ -106,54 +65,7 @@ export function ControlPanel({ mode, state, setMode, onChange }: Props) {
   );
   return (
     <aside className="control-panel" aria-label="設備と操作の設定">
-      <section className="panel-section equipment-section">
-        <div className="section-heading">
-          <h2>
-            <Box size={16} /> 設備を選ぶ
-          </h2>
-          <span className="count">1 種類</span>
-        </div>
-        <button
-          className="equipment-card"
-          aria-pressed="true"
-          aria-label="簡易バルクタンク（仮モデル）を選択"
-        >
-          <div className="equipment-image">
-            <TankThumbnail />
-            <span className="selected-check">
-              <Check size={12} />
-            </span>
-          </div>
-          <div className="equipment-copy">
-            <span className="model-tag">仮モデル</span>
-            <strong>{BULK_MODEL.name}</strong>
-            <span>横置き / 操作確認用</span>
-          </div>
-        </button>
-        <details className="model-details">
-          <summary>
-            仮寸法・モデルについて <ChevronDown size={14} />
-          </summary>
-          <dl>
-            <div>
-              <dt>全長</dt>
-              <dd>4.0 m</dd>
-            </div>
-            <div>
-              <dt>タンク直径</dt>
-              <dd>1.4 m</dd>
-            </div>
-            <div>
-              <dt>高さ（付属部品含む）</dt>
-              <dd>約 2.2 m</dd>
-            </div>
-          </dl>
-          <p>
-            寸法・色・形状はすべて仮のものです。実在製品の仕様を示すものではありません。実寸は固定で、表示サイズとは別に管理しています。
-          </p>
-        </details>
-      </section>
-
+      {library}
       <section className="panel-section adjustments-section">
         <div className="section-heading">
           <h2>
@@ -174,7 +86,8 @@ export function ControlPanel({ mode, state, setMode, onChange }: Props) {
             </button>
           ))}
         </div>
-        <div
+        <fieldset
+          disabled={!selected && mode !== "camera"}
           className="mode-fields"
           aria-label={`${MODES.find((item) => item.id === mode)!.name}の設定`}
         >
@@ -207,20 +120,20 @@ export function ControlPanel({ mode, state, setMode, onChange }: Props) {
                 "強い・広角",
               ])}
               <p className="field-note">
-                設備を見るカメラだけを調整します。遠近感を変えても、足元の位置を保ちます。
+                配置した全設備を見るカメラを共通で調整します。遠近感を変えても、足元の位置を保ちます。
               </p>
             </>
           )}
-        </div>
+        </fieldset>
       </section>
 
-      <section className="panel-section size-section">
+      <fieldset className="panel-section size-section" disabled={!selected}>
         <div className="section-heading">
           <h2>写真上の表示サイズ</h2>
-          <span className="small-pill">実寸は固定</span>
+          <span className="small-pill">表示倍率</span>
         </div>
         {adjustment("size", "表示倍率", "%", ["小さく", "大きく"])}
-      </section>
+      </fieldset>
       <div className="panel-footnote">
         <CircleHelp size={16} />
         <p>

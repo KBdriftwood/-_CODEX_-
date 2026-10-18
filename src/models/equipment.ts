@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import type { EquipmentDefinition } from "./catalog";
+import { createAdditionalModel } from "./additional";
+import type { PlacedEquipment } from "../state/editor";
 
 function labelTexture() {
   const canvas = document.createElement("canvas");
@@ -152,8 +154,13 @@ function createPlaceholder() {
 
 export async function createEquipment(
   definition: EquipmentDefinition,
+  options?: Pick<PlacedEquipment, "length" | "pipeShape">,
 ): Promise<THREE.Group> {
-  if (definition.asset.type === "procedural") return createPlaceholder();
+  if (definition.asset.type === "procedural") {
+    if (!definition.kind || definition.kind === "horizontal")
+      return createPlaceholder();
+    return createAdditionalModel(definition.kind, options);
+  }
   const { GLTFLoader } = await import("three/addons/loaders/GLTFLoader.js");
   const gltf = await new GLTFLoader().loadAsync(definition.asset.url);
   const wrapper = new THREE.Group();
@@ -193,7 +200,7 @@ export function createContactShadow() {
 
 export function disposeObject(object: THREE.Object3D) {
   object.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return;
+    if (!(child instanceof THREE.Mesh || child instanceof THREE.Line)) return;
     child.geometry.dispose();
     const materials = Array.isArray(child.material)
       ? child.material

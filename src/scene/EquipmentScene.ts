@@ -1,12 +1,13 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { BULK_MODEL } from "../models/catalog";
+import { BULK_MODEL, getDefinition } from "../models/catalog";
 import {
   createContactShadow,
   createEquipment,
   disposeObject,
 } from "../models/equipment";
 import { DEFAULT_STATE, type EditorState } from "../state/editor";
+import type { PlacedEquipment } from "../state/editor";
 
 export class EquipmentScene {
   readonly renderer: THREE.WebGLRenderer;
@@ -19,6 +20,18 @@ export class EquipmentScene {
   private aspect = 1.6;
   private disposed = false;
   ready = false;
+  private nodes = new Map<
+    string,
+    {
+      key: string;
+      root: THREE.Group;
+      object: THREE.Group;
+      item: PlacedEquipment;
+    }
+  >();
+  private itemRevision = 0;
+  private pending: Promise<void> = Promise.resolve();
+  private multiple = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -57,6 +70,80 @@ export class EquipmentScene {
     this.equipment.add(model);
     this.ready = true;
     this.update(this.state);
+  }
+
+  setItems(items: PlacedEquipment[]) {
+    const revision = ++this.itemRevision;
+    this.multiple = true;
+    this.anchor.visible = false;
+    this.pending = (async () => {
+      const results = await Promise.all(
+        items.map(async (item) => {
+          const key = `${item.modelId}:${item.length}:${item.pipeShape}`;
+          const previous = this.nodes.get(item.id);
+          if (previous?.key === key) return { ...previous, item, fresh: false };
+          const definition = getDefinition(item.modelId);
+          const object = await createEquipment(definition, item);
+          const root = new THREE.Group();
+          const shadow = createContactShadow();
+          shadow.scale.set(
+            Math.max(0.25, definition.dimensions.length / 4),
+            Math.max(0.2, definition.dimensions.diameter / 1.4),
+            1,
+          );
+          root.add(shadow, object);
+          return { key, root, object, item, fresh: true };
+        }),
+      );
+      if (this.disposed || revision !== this.itemRevision) {
+        results
+          .filter((node) => node.fresh)
+          .forEach((node) => disposeObject(node.root));
+        return;
+      }
+      for (const [id, node] of this.nodes)
+        if (
+          !results.some(
+            (result) => result.item.id === id && result.root === node.root,
+          )
+        ) {
+          this.scene.remove(node.root);
+          disposeObject(node.root);
+        }
+      this.nodes.clear();
+      for (const node of results) {
+        this.nodes.set(node.item.id, node);
+        if (node.fresh) this.scene.add(node.root);
+      }
+      this.ready = true;
+      this.update(this.state);
+    })();
+    return this.pending;
+  }
+
+  async settle() {
+    await this.pending;
+  }
+
+  pick(x: number, y: number) {
+    const ray = new THREE.Raycaster();
+    this.scene.updateMatrixWorld(true);
+    ray.setFromCamera(new THREE.Vector2(x * 2 - 1, 1 - y * 2), this.camera);
+    const hit = ray.intersectObjects(
+      [...this.nodes.values()]
+        .filter((node) => node.item.visible)
+        .map((node) => node.object),
+      true,
+    )[0];
+    if (!hit) return null;
+    for (const node of this.nodes.values()) {
+      let parent: THREE.Object3D | null = hit.object;
+      while (parent) {
+        if (parent === node.object) return node.item.id;
+        parent = parent.parent;
+      }
+    }
+    return null;
   }
 
   resize(width: number, height: number, aspect: number) {
@@ -112,6 +199,33 @@ export class EquipmentScene {
       radians(state.roll),
       "YXZ",
     );
+    if (this.multiple)
+      for (const node of this.nodes.values()) {
+        const value = node.item.state;
+        const horizontal = new THREE.Vector3().setFromMatrixColumn(
+          this.camera.matrixWorld,
+          0,
+        );
+        const vertical = new THREE.Vector3().setFromMatrixColumn(
+          this.camera.matrixWorld,
+          1,
+        );
+        node.root.position
+          .copy(
+            horizontal.multiplyScalar(
+              (value.x / 100 - 0.5) * visibleHeight * this.aspect,
+            ),
+          )
+          .add(vertical.multiplyScalar((0.5 - value.y / 100) * visibleHeight));
+        node.root.scale.setScalar(value.size / 100);
+        node.root.visible = node.item.visible;
+        node.object.rotation.set(
+          radians(value.pitch),
+          radians(value.yaw),
+          radians(value.roll),
+          "YXZ",
+        );
+      }
     this.render();
   }
 
@@ -154,6 +268,8 @@ export class EquipmentScene {
   dispose() {
     this.disposed = true;
     disposeObject(this.anchor);
+    for (const node of this.nodes.values()) disposeObject(node.root);
+    this.nodes.clear();
     this.environment.dispose();
     this.renderer.dispose();
   }

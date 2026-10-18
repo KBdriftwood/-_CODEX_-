@@ -1,3 +1,5 @@
 # 生成物のバイト列を保持する。差分は生成元のソースで確認する。
 preview/LP-VISION.html binary -whitespace linguist-generated=true
 preview/LP-VISION-check.zip binary linguist-generated=true
+preview/*.pdf binary linguist-generated=true
+preview/*.png binary linguist-generated=true

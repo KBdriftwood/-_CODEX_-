@@ -13,11 +13,15 @@ export function exportDimensions(
   };
 }
 
-export async function exportPng(photo: Photo, scene: EquipmentScene) {
+export function composeImage(
+  photo: Photo,
+  scene: EquipmentScene,
+  maximum = 4096,
+) {
   const { width, height } = exportDimensions(
     photo.width,
     photo.height,
-    scene.maxExportDimension(),
+    Math.min(maximum, scene.maxExportDimension()),
   );
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -50,6 +54,22 @@ export async function exportPng(photo: Photo, scene: EquipmentScene) {
     height - padding - fontSize / 2,
     Math.max(1, width - padding * 2),
   );
+  return canvas;
+}
+
+export function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export async function exportPng(photo: Photo, scene: EquipmentScene) {
+  const canvas = composeImage(photo, scene);
   const blob = await new Promise<Blob>((resolve, reject) =>
     canvas.toBlob(
       (value) =>
@@ -60,13 +80,6 @@ export async function exportPng(photo: Photo, scene: EquipmentScene) {
     ),
   );
   const name = photo.sample ? "サンプル" : photo.name.replace(/\.[^.]+$/, "");
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${name}_完成イメージ.png`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-  return { width, height };
+  downloadBlob(blob, `${name}_完成イメージ.png`);
+  return { width: canvas.width, height: canvas.height };
 }

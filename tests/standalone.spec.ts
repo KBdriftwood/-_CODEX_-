@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { PDFDocument } from "pdf-lib";
 
 test.beforeAll(() => {
   execFileSync(
@@ -14,11 +15,11 @@ test.beforeAll(() => {
   });
 });
 
-test("単一HTMLの内容だけで、ネット未接続でも写真・3D操作・PNG保存を利用できる", async ({
+test("単一HTMLの内容だけで、ネット未接続でも写真・修復・3D・PNG・PDF結合を利用できる", async ({
   page,
   context,
 }, testInfo) => {
-  test.setTimeout(60_000);
+  test.setTimeout(90_000);
   const errors: string[] = [];
   const networkRequests: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -98,10 +99,51 @@ test("単一HTMLの内容だけで、ネット未接続でも写真・3D操作�
   await page.getByRole("button", { name: "初期状態に戻す" }).click();
   await expect(page.getByLabel("横位置", { exact: true })).toHaveValue("54");
   await expect(page.locator(".file-name")).toHaveText("現場写真.png");
+  await page
+    .getByRole("button", { name: "写真を簡易修復", exact: true })
+    .click();
+  const repair = page.getByLabel("簡易修復の作業写真", { exact: true });
+  const box = (await repair.boundingBox())!;
+  await repair.click({
+    position: { x: box.width * 0.25, y: box.height * 0.25 },
+  });
+  await repair.click({
+    position: { x: box.width * 0.75, y: box.height * 0.65 },
+  });
+  await page
+    .getByRole("button", { name: "修復を背景に反映", exact: true })
+    .click();
+  await expect(page.locator(".file-name")).toHaveText("現場写真_修復済み.png");
   await page.getByRole("button", { name: "サンプル背景", exact: true }).click();
   await expect(page.locator(".file-name")).toHaveText(
     "サンプル背景（イラスト）",
   );
+  await page.getByLabel("追加する設備").selectOption("vaporizer");
+  await page.getByRole("button", { name: "設備を追加", exact: true }).click();
+  await expect(page.locator(".placed-row")).toHaveCount(2);
+  await page.getByRole("button", { name: "2 比較・提案書" }).click();
+  await page
+    .getByRole("button", { name: "A4横・左右に比較", exact: true })
+    .click();
+  const attachment = await PDFDocument.create();
+  attachment.addPage([320, 450]);
+  await page.getByLabel("追加するPDFファイル").setInputFiles({
+    name: "見積書.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from(await attachment.save()),
+  });
+  await expect(page.locator(".pdf-order li")).toHaveCount(2);
+  const pdfPromise = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "切替提案書PDFを保存", exact: true })
+    .click();
+  const pdf = await PDFDocument.load(
+    await readFile((await (await pdfPromise).path())!),
+  );
+  expect(pdf.getPages().map((p) => [p.getWidth(), p.getHeight()])).toEqual([
+    [841.89, 595.28],
+    [320, 450],
+  ]);
   expect(errors).toEqual([]);
   expect(networkRequests).toEqual([documentUrl]);
 });
