@@ -1,0 +1,5697 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LPガス設備図面作成 V2</title>
+  <style>
+:root {
+  --bg: #ebe8e3;
+  --panel: rgba(245, 244, 241, 0.55);
+  --panel-solid: #f5f4f1;
+  --ink: #3a3f46;
+  --ink-strong: #2a2e34;
+  --muted: #6b717a;
+  --line: rgba(138, 144, 153, 0.45);
+  --line-strong: #8a9099;
+  --accent: #5a6570;
+  --accent-strong: #3f4852;
+  --danger: #8a3d36;
+  --canvas-bg: #fafaf8;
+  --hud-bg: #d8dce1;
+  --hud-bg-hover: #c9ced5;
+  --hud-bg-active: #b8bfc8;
+  font-family: "Yu Gothic UI", "Hiragino Sans", Meiryo, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--hud-bg);
+  color: var(--ink-strong);
+  /* ボタン上は矢印。図面上の掴み（手）と区別する */
+  cursor: default;
+}
+
+button:hover:not(:disabled) {
+  background: var(--hud-bg-hover);
+}
+
+button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+button.primary {
+  background: #c5ccd5;
+  border-color: var(--accent);
+}
+
+button.danger {
+  border-color: rgba(168, 90, 82, 0.5);
+  color: var(--danger);
+}
+
+button[aria-pressed="true"],
+.tool-btn[aria-pressed="true"],
+.palette-btn[aria-pressed="true"],
+.hud-btn[aria-pressed="true"] {
+  background: var(--hud-bg-active);
+  border-color: var(--accent-strong);
+  box-shadow: inset 0 0 0 1px var(--accent-strong);
+}
+
+.app {
+  height: 100dvh;
+  width: 100vw;
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* 左：設備選択（スクロールなしで全部表示） */
+.palette {
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 5px;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  overflow: hidden;
+  min-height: 0;
+}
+
+.palette-brand {
+  display: flex;
+  justify-content: center;
+  padding: 0 0 2px;
+  flex: 0 0 auto;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: rgba(90, 101, 112, 0.14);
+  border: 1px solid var(--line);
+  color: var(--ink-strong);
+  font-weight: 700;
+  font-size: 10px;
+}
+
+.palette-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.palette-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 0 !important;
+  max-height: 34px;
+  height: auto;
+  padding: 2px 5px;
+  text-align: left;
+  background: var(--hud-bg);
+  border: 1px solid var(--line);
+  color: var(--ink-strong);
+  border-radius: 5px;
+}
+
+.palette-btn:hover:not(:disabled) {
+  background: var(--hud-bg-hover);
+}
+
+.palette-btn .icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: var(--ink-strong);
+}
+
+.palette-btn .label {
+  font-size: 10.5px;
+  font-weight: 650;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 作図エリア：端まで最大化 */
+.stage-wrap {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  height: 100dvh;
+  width: 100%;
+  background: var(--canvas-bg);
+  overflow: hidden;
+}
+
+#canvas {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+/* HUD：図面の上に重ねる。ボタン等以外は透過して図面を掴めるようにする */
+.hud {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  pointer-events: none;
+}
+
+.hud button,
+.hud input,
+.hud select,
+.hud label,
+.hud .dim-dock,
+.hud .cross-pad {
+  pointer-events: auto;
+}
+
+.hud-top {
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.hud-top-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.hud-edit-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.file-tools {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.file-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.sheet-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sheet-info label {
+  display: grid;
+  grid-template-columns: 3.6em 148px;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-strong);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sheet-info input[type="text"] {
+  width: 100%;
+  height: 26px;
+  min-height: 26px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink-strong);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.date-field {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 26px;
+}
+
+.date-field input[type="text"] {
+  padding-right: 26px;
+}
+
+.date-field input[type="date"] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 28px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: transparent;
+  cursor: default;
+}
+
+.date-field input[type="date"]::-webkit-calendar-picker-indicator {
+  margin: 0;
+  padding: 0;
+  cursor: default;
+  width: 16px;
+  height: 16px;
+}
+
+.print-sheet {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 0;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body > * {
+    display: none !important;
+  }
+
+  body > .print-sheet {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100vh;
+    page-break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-sheet canvas {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100vh;
+    margin: auto;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+.page-tabs {
+  flex: 0 1 auto;
+}
+
+.page-btn[aria-pressed="true"] {
+  background: var(--hud-bg-active);
+  border-color: var(--accent-strong);
+}
+
+.compare-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 48px 8px 40px;
+  background: var(--canvas-bg);
+  pointer-events: auto;
+}
+
+.compare-pane {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.compare-label {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  z-index: 2;
+  margin: 0;
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: rgba(245, 244, 241, 0.85);
+  color: var(--ink-strong);
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.compare-pane canvas {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.stage-wrap.is-compare #canvas,
+.stage-wrap.is-compare .hud-bottom-right {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.stage-wrap.is-compare .hud-edit-only {
+  display: none;
+}
+
+.app.is-compare .palette {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.hud-bottom-right {
+  right: 8px;
+  bottom: 8px;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: calc(100% - 16px);
+}
+
+.hud-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+
+.hud-btn {
+  min-height: 30px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink-strong);
+  background: var(--hud-bg);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(1.5px);
+}
+
+.hud-btn.compact {
+  min-width: 34px;
+  min-height: 30px;
+  padding: 3px 7px;
+}
+
+.hud-btn.compact-wide {
+  width: 100%;
+  min-height: 28px;
+  font-size: 11px;
+}
+
+.view-nudge {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+}
+
+.nudge-row,
+.cross-mid {
+  display: flex;
+  gap: 3px;
+}
+
+.status-chip {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 4;
+  max-width: min(360px, 40vw);
+  padding: 4px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: rgba(245, 244, 241, 0.55);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+  pointer-events: none;
+  backdrop-filter: blur(1.5px);
+}
+
+/* 採寸・寸法：十字キーの左側（スクロールなし・全体表示） */
+.dim-dock {
+  width: min(180px, 42vw);
+  max-height: none;
+  overflow: hidden;
+  padding: 4px 5px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: rgba(245, 244, 241, 0.28);
+  backdrop-filter: blur(2px);
+  box-sizing: border-box;
+}
+
+.dim-dock .selection-label {
+  margin: 0 0 3px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--ink-strong);
+  line-height: 1.15;
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.editor label {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  color: var(--muted);
+  line-height: 1.1;
+}
+
+.editor label.name-field {
+  grid-template-columns: 36px minmax(0, 1fr);
+}
+
+.dim-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px 3px;
+  width: 100%;
+  min-width: 0;
+}
+
+.dim-fields label {
+  grid-template-columns: 1fr;
+  gap: 1px;
+  font-size: 9px;
+  font-weight: 650;
+  color: var(--ink-strong);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.editor input,
+.editor select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 20px;
+  height: 20px;
+  padding: 0 3px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.45);
+  color: var(--ink-strong);
+  font-size: 10px;
+}
+
+.dim-dock .hud-btn.compact-wide {
+  min-height: 22px;
+  padding: 1px 5px;
+  font-size: 9px;
+  margin-top: 1px;
+}
+
+/* 右下：図形移動十字キー */
+.cross-pad {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(245, 244, 241, 0.22);
+  backdrop-filter: blur(1.5px);
+}
+
+.cross-label {
+  font-size: 10px;
+  font-weight: 650;
+  color: var(--ink-strong);
+  margin-bottom: 2px;
+}
+
+.cross-btn {
+  font-size: 14px;
+}
+
+/* 説明文は左下。サイズ表示（status-chip）の上に重ねない */
+.toast {
+  position: absolute;
+  left: 8px;
+  top: auto;
+  bottom: 42px;
+  z-index: 5;
+  margin: 0;
+  max-width: min(320px, 42vw);
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink-strong);
+  font-size: 12px;
+  line-height: 1.35;
+  pointer-events: none;
+  text-align: left;
+  backdrop-filter: blur(1.5px);
+}
+
+.toast:empty {
+  display: none;
+}
+
+/* ブラウザ標準の dialog 引き伸ばし／スクロールを止め、内容サイズに合わせる */
+#dimDialog,
+#dimDialog[open] {
+  position: fixed;
+  inset: unset;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  width: min(360px, calc(100vw - 24px));
+  height: fit-content !important;
+  max-height: min(90vh, 640px) !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 0;
+  background: var(--panel-solid);
+  color: var(--ink);
+  box-sizing: border-box;
+}
+
+#dimDialog::backdrop {
+  background: rgba(40, 44, 52, 0.35);
+}
+
+#dimForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  overflow: auto;
+  max-height: min(90vh, 640px);
+  box-sizing: border-box;
+}
+
+#dimDialog h2 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-strong);
+  line-height: 1.2;
+}
+
+.dialog-note {
+  margin: 0;
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.25;
+}
+
+.dialog-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+#dimDialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.15;
+}
+
+#dimDialog label.dialog-name {
+  width: 100%;
+}
+
+#dimDialog input,
+#dimDialog select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 26px;
+  height: 26px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink-strong);
+  font-size: 12px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 0;
+}
+
+.dialog-actions button {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+#dialogFields,
+.dialog-size-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 8px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  order: -1;
+}
+
+#dialogFields label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--ink-strong);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+#dialogFields label.field-height {
+  /* 高さ欄も同じグリッド内に収める */
+  min-width: 0;
+  max-width: 100%;
+}
+
+.unit-input-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  width: 100%;
+}
+
+.unit-input-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.unit-suffix {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-strong);
+  line-height: 1;
+}
+
+.dim-fields .unit-suffix {
+  font-size: 10px;
+}
+
+#otherShapeFields label {
+  font-size: 10px;
+}
+
+.field-hint {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .app {
+    grid-template-columns: 108px minmax(0, 1fr);
+  }
+
+  .palette-btn .label {
+    font-size: 10px;
+  }
+
+  .dim-dock {
+    width: min(168px, 48vw);
+  }
+
+  #dimDialog,
+  #dimDialog[open] {
+    width: min(340px, calc(100vw - 16px));
+  }
+
+  #dialogFields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hud-top {
+    justify-content: flex-start;
+  }
+
+  .status-chip {
+    max-width: min(200px, 36vw);
+    font-size: 9px;
+  }
+}
+
+</style>
+</head>
+<body>
+  <div class="app">
+    <aside class="palette" aria-label="設備選択">
+      <div class="palette-brand" title="LPガス設備図面作成 V2">
+        <span class="brand-mark">V2</span>
+      </div>
+      <div id="palette" class="palette-list"></div>
+    </aside>
+
+    <main class="stage-wrap">
+      <canvas id="canvas" aria-label="作図エリア（平面図）"></canvas>
+
+      <div id="compareStage" class="compare-stage" hidden>
+        <div class="compare-pane">
+          <p class="compare-label">Before</p>
+          <canvas id="canvasBefore" aria-label="Before plan"></canvas>
+        </div>
+        <div class="compare-pane">
+          <p class="compare-label">After</p>
+          <canvas id="canvasAfter" aria-label="After plan"></canvas>
+        </div>
+      </div>
+
+      <!-- 上：透明オーバーレイ（作図領域は縮めない） -->
+      <div class="hud hud-top" aria-label="編集・表示操作">
+        <div class="hud-top-main">
+          <div class="hud-cluster page-tabs" aria-label="図面ページ">
+            <button type="button" id="pageBefore" class="hud-btn page-btn" aria-pressed="true" title="Before (current)">Before</button>
+            <button type="button" id="pageAfter" class="hud-btn page-btn" aria-pressed="false" title="After (proposed)">After</button>
+            <button type="button" id="pageCompare" class="hud-btn page-btn" aria-pressed="false" title="Compare" disabled>Compare</button>
+            <button type="button" id="copyAfterButton" class="hud-btn" title="Copy Before to create After">Copy</button>
+          </div>
+          <div class="hud-edit-tools" id="editTools">
+            <div class="hud-cluster hud-edit-only">
+              <button type="button" id="undoButton" class="hud-btn" disabled title="戻る（Ctrl+Z）">戻る</button>
+              <button type="button" id="redoButton" class="hud-btn" disabled title="やり直す（Ctrl+Y）">進む</button>
+              <button type="button" id="toolSelect" class="hud-btn tool-btn" aria-pressed="true" title="選択">選択</button>
+              <button type="button" id="toolMove" class="hud-btn tool-btn" aria-pressed="false" title="移動">移動</button>
+              <button type="button" id="groupButton" class="hud-btn" disabled title="選択中を一式にグループ化">一式</button>
+              <button type="button" id="ungroupButton" class="hud-btn" disabled title="一式を解除">解除</button>
+              <button type="button" id="copyButton" class="hud-btn" disabled title="選択中をコピー（Ctrl+C）">コピー</button>
+              <button type="button" id="pasteButton" class="hud-btn" disabled title="貼り付け（Ctrl+V）">貼り付け</button>
+              <button type="button" id="frontButton" class="hud-btn" disabled title="選択中を最前面へ">前面</button>
+              <button type="button" id="backButton" class="hud-btn" disabled title="選択中を最背面へ">背面</button>
+              <button type="button" id="deleteButton" class="hud-btn danger" disabled title="削除">削除</button>
+            </div>
+            <div class="hud-cluster" id="viewZoomTools">
+              <button type="button" id="zoomOutButton" class="hud-btn" title="縮小">縮小</button>
+              <button type="button" id="fitButton" class="hud-btn" title="全体表示">全体</button>
+              <button type="button" id="zoomInButton" class="hud-btn" title="拡大">拡大</button>
+            </div>
+            <div class="hud-cluster view-nudge" id="viewPanTools" aria-label="表示位置">
+              <button type="button" id="panUp" class="hud-btn compact" title="表示を上へ" aria-label="表示を上へ">↑</button>
+              <div class="nudge-row">
+                <button type="button" id="panLeft" class="hud-btn compact" title="表示を左へ" aria-label="表示を左へ">←</button>
+                <button type="button" id="panRight" class="hud-btn compact" title="表示を右へ" aria-label="表示を右へ">→</button>
+              </div>
+              <button type="button" id="panDown" class="hud-btn compact" title="表示を下へ" aria-label="表示を下へ">↓</button>
+            </div>
+          </div>
+        </div>
+        <div class="file-tools" aria-label="図面情報とファイル操作">
+          <div class="sheet-info">
+            <label>日付
+              <span class="date-field">
+                <input id="sheetDateText" type="text" maxlength="10" autocomplete="off" spellcheck="false" placeholder="年/月/日">
+                <input id="sheetDateInput" type="date" aria-label="カレンダー">
+              </span>
+            </label>
+            <label>タイトル
+              <input id="sheetTitleInput" type="text" maxlength="60" placeholder="題名" autocomplete="off" spellcheck="false">
+            </label>
+            <label>名前
+              <input id="sheetNameInput" type="text" maxlength="40" value="ニイミ産業" autocomplete="off" spellcheck="false">
+            </label>
+          </div>
+          <div class="file-buttons">
+            <button type="button" id="openButton" class="hud-btn" title="保存したJSON図面を開く">開く</button>
+            <button type="button" id="saveButton" class="hud-btn" title="ダウンロードフォルダにJSON保存">保存</button>
+            <button type="button" id="pdfButton" class="hud-btn" title="表示中の図面をA4横のPDFとして保存">PDF保存</button>
+            <button type="button" id="printButton" class="hud-btn" title="平面図を印刷">印刷</button>
+          </div>
+        </div>
+      </div>
+      <input type="file" id="openFile" accept="application/json,.json" hidden>
+
+      <div class="status-chip" id="statusBar" aria-live="polite"></div>
+      <p id="message" class="toast" role="status"></p>
+
+      <!-- 下右：寸法操作（左）＋ 図形移動十字キー（右） -->
+      <div class="hud hud-bottom-right" aria-label="寸法と移動">
+        <aside class="dim-dock" id="inspector" aria-label="採寸・寸法操作" hidden>
+          <p id="selectionLabel" class="selection-label">寸法</p>
+          <div id="editor" class="editor" hidden>
+            <div id="dimFields" class="dim-fields"></div>
+            <label class="name-field">名称
+              <input id="nameInput" type="text" maxlength="40" autocomplete="off">
+            </label>
+            <button type="button" id="applyDimsButton" class="hud-btn primary compact-wide">反映</button>
+            <button type="button" id="resetLabelsButton" class="hud-btn compact-wide" title="寸法・名称の位置を初期位置に戻す">ラベル位置リセット</button>
+          </div>
+        </aside>
+
+        <div class="cross-pad" aria-label="図形を100mm移動">
+          <span class="cross-label">移動 100mm</span>
+          <button type="button" id="moveUp" class="hud-btn compact cross-btn" aria-label="上へ" disabled>↑</button>
+          <div class="cross-mid">
+            <button type="button" id="moveLeft" class="hud-btn compact cross-btn" aria-label="左へ" disabled>←</button>
+            <button type="button" id="moveRight" class="hud-btn compact cross-btn" aria-label="右へ" disabled>→</button>
+          </div>
+          <button type="button" id="moveDown" class="hud-btn compact cross-btn" aria-label="下へ" disabled>↓</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="dimDialog">
+    <form method="dialog" id="dimForm">
+      <h2 id="dimDialogTitle">寸法入力</h2>
+      <p class="dialog-note">空欄＝未確認（推測しません）</p>
+      <div class="dialog-grid">
+        <div id="dialogFields" class="dialog-size-row"></div>
+        <label class="dialog-name">名称
+          <input id="dialogName" type="text" maxlength="40" autocomplete="off">
+        </label>
+        <div id="otherShapeFields" hidden>
+          <label>形状
+            <select id="dialogShape">
+              <option value="rect">長方形</option>
+              <option value="circle">円形</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="dimCancelButton" formnovalidate>やめる</button>
+        <button type="submit" value="ok" class="primary" id="dimOkButton">配置</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+// 設備種類の定義。寸法は mm。未入力は null（未確認）を許容する。
+// 見た目のアイコンと、実寸法に基づく外形描画は分離する。
+
+const EQUIPMENT_TYPES = [
+  {
+    type: "foundation",
+    label: "基礎",
+    shape: "rect",
+    fill: "#d9d2c5",
+    stroke: "#6f6758",
+    icon: "foundation",
+    fields: [
+      { key: "widthMm", label: "幅（mm）", required: true },
+      { key: "depthMm", label: "奥行き（mm）", required: true },
+      { key: "heightMm", label: "高さ（mm）", required: false }
+    ]
+  },
+  {
+    type: "road",
+    label: "道路",
+    shape: "rect",
+    fill: "#b0b5bb",
+    stroke: "#555b63",
+    icon: "road",
+    fields: [
+      { key: "lengthMm", label: "長さ（mm）", required: true },
+      { key: "widthMm", label: "幅（mm）", required: true }
+    ]
+  },
+  {
+    type: "underground_tank",
+    label: "地下タンク",
+    shape: "circle",
+    fill: "#d5dee8",
+    stroke: "#3c5670",
+    icon: "tank",
+    fields: [
+      { key: "lengthMm", label: "長さ（mm）", required: true },
+      { key: "diameterMm", label: "直径（mm）", required: true },
+      {
+        key: "burialDepthMm",
+        label: "埋設深さ（mm）",
+        required: false,
+        hint: "地盤面を±0mmとした深さ。不明なら空欄。"
+      }
+    ]
+  },
+  {
+    type: "pump_house",
+    label: "ポンプ小屋",
+    shape: "rect",
+    fill: "#e6d3b5",
+    stroke: "#8a6a45",
+    icon: "pump",
+    fields: [
+      { key: "widthMm", label: "幅（mm）", required: true },
+      { key: "depthMm", label: "奥行き（mm）", required: true },
+      { key: "heightMm", label: "高さ（mm）", required: false }
+    ]
+  },
+  {
+    type: "greenbelt",
+    label: "緑地帯",
+    shape: "rect",
+    fill: "#a8c992",
+    stroke: "#4f7a3d",
+    icon: "green",
+    fields: [
+      { key: "widthMm", label: "幅（mm）", required: true },
+      { key: "depthMm", label: "奥行き（mm）", required: true },
+      { key: "heightMm", label: "高さ（mm）", required: false }
+    ]
+  },
+  {
+    type: "parking",
+    label: "駐車場",
+    shape: "rect",
+    fill: "#cfd4da",
+    stroke: "#6e7680",
+    icon: "parking",
+    fields: [
+      { key: "widthMm", label: "幅（mm）", required: true },
+      { key: "depthMm", label: "奥行き（mm）", required: true },
+      { key: "heightMm", label: "高さ（mm）", required: false }
+    ]
+  },
+  {
+    type: "factory",
+    label: "工場",
+    shape: "rect",
+    fill: "#ead7b8",
+    stroke: "#a88462",
+    icon: "factory",
+    fields: [
+      { key: "widthMm", label: "幅（mm）", required: true },
+      { key: "depthMm", label: "奥行き（mm）", required: true },
+      { key: "heightMm", label: "高さ（mm）", required: false }
+    ]
+  },
+  {
+    type: "office",
+    label: "事務所",
+    shape: "rect",
+    fill: "#d7e0ea",
+    stroke: "#5a6d82",
+    icon: "office",
+    fields: [
+      { key: "widthMm", label: "幅（mm）", required: true },
+      { key: "depthMm", label: "奥行き（mm）", required: true },
+      { key: "heightMm", label: "高さ（mm）", required: false }
+    ]
+  },
+  {
+    type: "bulk_2_9t",
+    label: "2.9ｔバルク",
+    shape: "circle",
+    fill: "#c8d7e8",
+    stroke: "#35506c",
+    icon: "bulk29",
+    fields: [
+      { key: "diameterMm", label: "直径（mm）", required: true },
+      { key: "heightMm", label: "高さ（mm）", required: false }
+    ]
+  },
+  {
+    type: "bulk_1t",
+    label: "1ｔバルク",
+    shape: "circle",
+    fill: "#bcd0e4",
+    stroke: "#3a5874",
+    icon: "bulk1",
+    fields: [
+      { key: "diameterMm", label: "直径（mm）", required: true },
+      { key: "heightMm", label: "高さ（mm）", required: false }
+    ]
+  },
+  {
+    type: "vaporizer",
+    label: "ＶＲ",
+    shape: "rect",
+    fill: "#f0c98a",
+    stroke: "#8a5a18",
+    icon: "vr",
+    fields: [
+      { key: "widthMm", label: "幅（mm）", required: true },
+      { key: "depthMm", label: "奥行き（mm）", required: true },
+      { key: "heightMm", label: "高さ（mm）", required: false }
+    ]
+  },
+  {
+    type: "heater",
+    label: "熱源器",
+    shape: "rect",
+    fill: "#e28655",
+    stroke: "#8d3d22",
+    icon: "heater",
+    fields: [
+      { key: "widthMm", label: "幅（mm）", required: true },
+      { key: "depthMm", label: "奥行き（mm）", required: true },
+      { key: "heightMm", label: "高さ（mm）", required: false }
+    ]
+  },
+  {
+    type: "pipe",
+    label: "配管",
+    shape: "pipe",
+    fill: "#c45c26",
+    stroke: "#8a3d16",
+    icon: "pipe",
+    placeMode: "line",
+    fields: [
+      { key: "diameterMm", label: "太さ", required: false, unitSuffix: "A" }
+    ]
+  },
+  {
+    type: "other",
+    label: "その他",
+    shape: "rect",
+    fill: "#d8d2c6",
+    stroke: "#6f6758",
+    icon: "other",
+    fields: [
+      { key: "widthMm", label: "幅（mm）", required: true },
+      { key: "depthMm", label: "奥行き（mm）", required: true },
+      { key: "heightMm", label: "高さ（mm）", required: false }
+    ],
+    allowsCustomShape: true
+  }
+];
+
+function equipmentTypeOf(type) {
+  return EQUIPMENT_TYPES.find((item) => item.type === type) || EQUIPMENT_TYPES[EQUIPMENT_TYPES.length - 1];
+}
+
+function isPipeType(type) {
+  return type === "pipe";
+}
+
+function isLinePlaceType(type) {
+  const def = equipmentTypeOf(type);
+  return !!(def && def.placeMode === "line");
+}
+
+function iconSvg(name) {
+  const common = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"';
+  const paths = {
+    foundation: '<rect x="3" y="14" width="18" height="5" rx="1"/><path d="M5 14V9h4v5M10 14V7h4v7M15 14V10h4v4"/>',
+    road: '<path d="M4 19L8 5h8l4 14"/><path d="M12 7v2M12 12v2M12 17v1"/>',
+    tank: '<ellipse cx="12" cy="8" rx="6" ry="3"/><path d="M6 8v8c0 1.7 2.7 3 6 3s6-1.3 6-3V8"/><path d="M6 12c0 1.7 2.7 3 6 3s6-1.3 6-3"/>',
+    bulk29: '<circle cx="12" cy="12" r="8"/><text x="12" y="14" text-anchor="middle" font-size="5.5" fill="currentColor" stroke="none" font-weight="700">2.9</text>',
+    bulk1: '<circle cx="12" cy="12" r="7.5"/><text x="12" y="14.2" text-anchor="middle" font-size="7" fill="currentColor" stroke="none" font-weight="700">1</text>',
+    vr: '<rect x="5" y="4" width="14" height="16" rx="1"/><path d="M8 8h8M8 12h8M8 16h8M7 8c2 1.5 2 2.5 0 4M17 8c-2 1.5-2 2.5 0 4"/>',
+    heater: '<rect x="4" y="7" width="16" height="12" rx="1"/><path d="M7 7V5h4v2M13 7V4h4v3M8 12h2M12 12h2M16 12h1M8 16h8"/>',
+    pump: '<rect x="4" y="8" width="12" height="10" rx="1"/><path d="M16 11h3v4h-3M8 8V6h4v2"/>',
+    green: '<path d="M12 20V11"/><path d="M12 14c-3-1-5-4-4-7 3 0 5 2 4 5"/><path d="M12 13c3-1 5-4 4-7-3 0-5 2-4 5"/><path d="M7 20h10"/>',
+    parking: '<rect x="4" y="5" width="16" height="14" rx="1"/><path d="M9 15V9h3.2a2.4 2.4 0 010 4.8H9"/>',
+    factory: '<path d="M3 20V10l5 3V10l5 3V8l8 4v8z"/><path d="M7 20v-3M12 20v-3M17 20v-3"/>',
+    office: '<rect x="5" y="4" width="14" height="16" rx="1"/><path d="M8 8h2M12 8h2M8 12h2M12 12h2M8 16h8"/>',
+    other: '<rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 12h6M12 9v6"/>',
+    pipe: '<path d="M4 14h7l2-4h7"/><circle cx="5" cy="14" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="10" r="1.6" fill="currentColor" stroke="none"/>'
+  };
+  return `<svg class="icon" ${common}>${paths[name] || paths.other}</svg>`;
+}
+
+</script>
+  <script>
+// V2データモデル。
+// - pages.before / pages.after: ビフォア・アフターの独立した図面ページ
+// - 各ページ内: equipment（設備）と drawing.placements（配置）
+// - elevation 用の地盤基準（±0）も設備側に持つ。
+// V1の localStorage キーには一切触れない。
+
+const MOVE_STEP_MM = 100;
+const SITE_WIDTH_MM = 50000;
+const SITE_DEPTH_MM = 50000;
+const STORAGE_KEY_V2 = "lp-gas-equipment-drawing-v2";
+const SCHEMA_ID = "lp-gas-drawing-v2";
+const PAGE_BEFORE = "before";
+const PAGE_AFTER = "after";
+const PAGE_COMPARE = "compare";
+const VIEW_LABEL_PLAN = "上から平面図";
+const DEFAULT_SHEET_NAME = "ニイミ産業";
+
+function emptyPage() {
+  return {
+    equipment: [],
+    drawing: {
+      view: "plan",
+      placements: [],
+      groups: []
+    }
+  };
+}
+
+function todayIsoDate() {
+  const now = new Date();
+  const pad = (value) => String(value).padStart(2, "0");
+  return now.getFullYear() + "-" + pad(now.getMonth() + 1) + "-" + pad(now.getDate());
+}
+
+function emptyMeta() {
+  return {
+    date: todayIsoDate(),
+    title: "",
+    name: DEFAULT_SHEET_NAME
+  };
+}
+
+function emptyDocument() {
+  return {
+    version: 2,
+    schema: SCHEMA_ID,
+    meta: emptyMeta(),
+    site: {
+      widthMm: SITE_WIDTH_MM,
+      depthMm: SITE_DEPTH_MM,
+      groundLevelMm: 0
+    },
+    activePage: PAGE_BEFORE,
+    pages: {
+      before: emptyPage(),
+      after: null
+    }
+  };
+}
+
+function normalizeMeta(raw) {
+  const base = emptyMeta();
+  if (!raw || typeof raw !== "object") {
+    return base;
+  }
+  const date = String(raw.date || "").trim();
+  base.date = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : base.date;
+  base.title = String(raw.title || "").slice(0, 60);
+  const name = String(raw.name == null ? DEFAULT_SHEET_NAME : raw.name).slice(0, 40);
+  base.name = name;
+  return base;
+}
+
+function fileNamePart(value) {
+  return String(value || "").replace(/[\\/:*?"<>|]/g, "").trim();
+}
+
+/** ダウンロード用ファイル名（拡張子なし）: 20261012_上から平面図_タイトル_名前 */
+function buildDownloadBaseName(meta, viewLabel) {
+  const info = normalizeMeta(meta);
+  const date = info.date ? info.date.replace(/-/g, "") : "";
+  const pieces = [
+    date,
+    viewLabel || VIEW_LABEL_PLAN,
+    fileNamePart(info.title),
+    fileNamePart(info.name)
+  ].filter(Boolean);
+  return pieces.join("_") || (viewLabel || VIEW_LABEL_PLAN);
+}
+
+function workDocFromProject(project, pageKey) {
+  const key = pageKey === PAGE_AFTER ? PAGE_AFTER : PAGE_BEFORE;
+  const page = project.pages[key];
+  if (!page) {
+    return null;
+  }
+  return {
+    site: project.site,
+    equipment: page.equipment,
+    drawing: page.drawing
+  };
+}
+
+function hasAfterPage(project) {
+  return !!(project.pages && project.pages.after);
+}
+
+/**
+ * アフター画面で「アフター側の変更／追加」として目立たせるか。
+ * - originId なし … アフターで新規追加
+ * - followBefore === false … アフターで移動・寸法変更などして切り離した
+ */
+function isAfterOwnedItem(equipment, placement) {
+  if (!equipment) {
+    return false;
+  }
+  if (!equipment.originId) {
+    return true;
+  }
+  if (placement && placement.followBefore === false) {
+    return true;
+  }
+  return false;
+}
+
+function clonePageDeep(sourcePage) {
+  const source = normalizePage(sourcePage) || emptyPage();
+  const eqIdMap = {};
+  const plIdMap = {};
+  const equipment = source.equipment.map((eq) => {
+    const copy = JSON.parse(JSON.stringify(eq));
+    const newId = makeId("eq");
+    eqIdMap[eq.id] = newId;
+    copy.id = newId;
+    // ビフォア側の設備ID。あとから増えた分だけアフターへ追記するために使う。
+    copy.originId = eq.id;
+    return copy;
+  });
+  const placements = source.drawing.placements.map((pl) => {
+    const newId = makeId("pl");
+    plIdMap[pl.id] = newId;
+    const copy = {
+      id: newId,
+      equipmentId: eqIdMap[pl.equipmentId],
+      originId: pl.id,
+      followBefore: true,
+      xMm: pl.xMm,
+      yMm: pl.yMm,
+      rotationDeg: pl.rotationDeg,
+      labelOffsets: normalizeLabelOffsets(pl.labelOffsets)
+    };
+    if (pl.endXMm != null) {
+      copy.endXMm = pl.endXMm;
+    }
+    if (pl.endYMm != null) {
+      copy.endYMm = pl.endYMm;
+    }
+    return copy;
+  }).filter((pl) => pl.equipmentId);
+  const groups = (source.drawing.groups || []).map((group) => ({
+    id: makeId("grp"),
+    name: group.name,
+    placementIds: (group.placementIds || []).map((id) => plIdMap[id]).filter(Boolean)
+  })).filter((group) => group.placementIds.length >= 2);
+  return {
+    equipment: equipment,
+    drawing: {
+      view: "plan",
+      placements: placements,
+      groups: groups
+    }
+  };
+}
+
+function createAfterFromBefore(project) {
+  project.pages.after = clonePageDeep(project.pages.before);
+  return project.pages.after;
+}
+
+/**
+ * ビフォアにあってアフターに未反映の設備だけを追記する。
+ * アフター側の削除・追加・移動は残す（上書きしない）。
+ * @returns {number} 追記した設備数
+ */
+function syncNewBeforeEquipmentToAfter(project) {
+  if (!hasAfterPage(project)) {
+    return 0;
+  }
+  seedAfterOriginLinksIfNeeded(project);
+  const before = project.pages.before;
+  const after = project.pages.after;
+  const linkedOriginIds = new Set(
+    after.equipment.map((eq) => eq.originId).filter(Boolean)
+  );
+  let added = 0;
+  before.equipment.forEach((eq) => {
+    if (linkedOriginIds.has(eq.id)) {
+      return;
+    }
+    const copy = JSON.parse(JSON.stringify(eq));
+    copy.id = makeId("eq");
+    copy.originId = eq.id;
+    after.equipment.push(copy);
+    before.drawing.placements
+      .filter((pl) => pl.equipmentId === eq.id)
+      .forEach((pl) => {
+        const afterPl = {
+          id: makeId("pl"),
+          equipmentId: copy.id,
+          originId: pl.id,
+          followBefore: true,
+          xMm: pl.xMm,
+          yMm: pl.yMm,
+          rotationDeg: pl.rotationDeg,
+          labelOffsets: normalizeLabelOffsets(pl.labelOffsets)
+        };
+        if (pl.endXMm != null) {
+          afterPl.endXMm = pl.endXMm;
+        }
+        if (pl.endYMm != null) {
+          afterPl.endYMm = pl.endYMm;
+        }
+        after.drawing.placements.push(afterPl);
+      });
+    linkedOriginIds.add(eq.id);
+    added += 1;
+  });
+  return added;
+}
+
+/**
+ * アフター配置がビフォアを映し出し中か。
+ * followBefore === false はアフターで独自操作済み。
+ * 未設定（旧データ）は、位置がビフォアと一致しているときだけ追従中とみなす。
+ */
+function placementFollowsBefore(afterPl, beforePl) {
+  if (!afterPl) {
+    return false;
+  }
+  if (afterPl.followBefore === false) {
+    return false;
+  }
+  if (afterPl.followBefore === true) {
+    return true;
+  }
+  if (!beforePl) {
+    return true;
+  }
+  const sameStart = snapMm(afterPl.xMm) === snapMm(beforePl.xMm)
+    && snapMm(afterPl.yMm) === snapMm(beforePl.yMm)
+    && afterPl.rotationDeg === beforePl.rotationDeg;
+  if (!sameStart) {
+    return false;
+  }
+  const beforeEndX = beforePl.endXMm != null ? snapMm(beforePl.endXMm) : null;
+  const beforeEndY = beforePl.endYMm != null ? snapMm(beforePl.endYMm) : null;
+  const afterEndX = afterPl.endXMm != null ? snapMm(afterPl.endXMm) : null;
+  const afterEndY = afterPl.endYMm != null ? snapMm(afterPl.endYMm) : null;
+  return beforeEndX === afterEndX && beforeEndY === afterEndY;
+}
+
+/**
+ * アフター側で動かした／寸法変更した配置を、ビフォア追従から外す。
+ */
+function detachAfterPlacements(placements) {
+  if (!placements || !placements.length) {
+    return;
+  }
+  placements.forEach((placement) => {
+    if (placement) {
+      placement.followBefore = false;
+    }
+  });
+}
+
+/**
+ * ビフォア配置に対応するアフター配置を探す。欠けた originId は修復する。
+ */
+function findLinkedAfterPlacement(before, after, beforePl) {
+  if (!before || !after || !beforePl) {
+    return null;
+  }
+  let afterPl = after.drawing.placements.find((pl) => pl.originId === beforePl.id);
+  if (afterPl) {
+    return afterPl;
+  }
+
+  const beforeEq = before.equipment.find((eq) => eq.id === beforePl.equipmentId) || null;
+  if (beforeEq) {
+    const afterEq = after.equipment.find((eq) => eq.originId === beforeEq.id);
+    if (afterEq) {
+      afterPl = after.drawing.placements.find((pl) => pl.equipmentId === afterEq.id) || null;
+      if (afterPl) {
+        afterPl.originId = beforePl.id;
+        return afterPl;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * ビフォアをアフターへ映し出す。
+ * - 追従中の設備：位置・向き・寸法・名称をビフォアに合わせる
+ * - アフターで動かした／寸法変更した設備：位置はそのまま残す（追従は外れたまま）
+ * - ビフォアで増えた設備：追記
+ * - ビフォアで消した設備：リンクのあるアフター設備も削除（追従／切り離し問わず）
+ * - アフターだけで追加した設備（originIdなし）：そのまま残す
+ * @returns {{ added: number, mirrored: number, removed: number }}
+ */
+function mirrorBeforeToAfter(project) {
+  const empty = { added: 0, mirrored: 0, removed: 0 };
+  if (!hasAfterPage(project)) {
+    return empty;
+  }
+  seedAfterOriginLinksIfNeeded(project);
+  const before = project.pages.before;
+  const after = project.pages.after;
+  const afterDoc = workDocFromProject(project, PAGE_AFTER);
+  const added = syncNewBeforeEquipmentToAfter(project);
+
+  let removed = 0;
+  const beforeEqIds = new Set(before.equipment.map((eq) => eq.id));
+  const orphanPlacements = after.drawing.placements.slice();
+  orphanPlacements.forEach((afterPl) => {
+    const afterEq = after.equipment.find((eq) => eq.id === afterPl.equipmentId);
+    if (!afterEq || !afterEq.originId) {
+      return;
+    }
+    if (beforeEqIds.has(afterEq.originId)) {
+      return;
+    }
+    // ビフォア側が消えたリンク先は、アフターで切り離していても連動削除する
+    removePair(afterDoc, afterPl.id);
+    removed += 1;
+  });
+
+  let mirrored = 0;
+  before.drawing.placements.forEach((beforePl) => {
+    const afterPl = findLinkedAfterPlacement(before, after, beforePl);
+    if (!afterPl || !placementFollowsBefore(afterPl, beforePl)) {
+      return;
+    }
+    const beforeEq = before.equipment.find((eq) => eq.id === beforePl.equipmentId);
+    const afterEq = after.equipment.find((eq) => eq.id === afterPl.equipmentId);
+    if (!beforeEq || !afterEq) {
+      return;
+    }
+    afterPl.xMm = beforePl.xMm;
+    afterPl.yMm = beforePl.yMm;
+    afterPl.rotationDeg = beforePl.rotationDeg;
+    if (beforePl.endXMm != null || beforePl.endYMm != null) {
+      afterPl.endXMm = beforePl.endXMm;
+      afterPl.endYMm = beforePl.endYMm;
+    }
+    afterPl.followBefore = true;
+    afterEq.name = beforeEq.name;
+    afterEq.shape = beforeEq.shape;
+    afterEq.dimensions = JSON.parse(JSON.stringify(beforeEq.dimensions));
+    afterEq.elevation = JSON.parse(JSON.stringify(beforeEq.elevation));
+    clampPlacementToSite(afterPl, afterEq, project.site);
+    mirrored += 1;
+  });
+
+  return { added: added, mirrored: mirrored, removed: removed };
+}
+
+/**
+ * 旧データ（originIdなし／欠け）のアフターに対応IDを付ける。
+ * 設備に originId があっても配置側が欠けている場合は修復する。
+ */
+function seedAfterOriginLinksIfNeeded(project) {
+  const before = project.pages.before;
+  const after = project.pages.after;
+  if (!before || !after) {
+    return;
+  }
+
+  // 設備の originId から配置の originId を修復
+  after.equipment.forEach((afterEq) => {
+    if (!afterEq.originId) {
+      return;
+    }
+    const beforeEq = before.equipment.find((eq) => eq.id === afterEq.originId);
+    if (!beforeEq) {
+      return;
+    }
+    const beforePl = before.drawing.placements.find((pl) => pl.equipmentId === beforeEq.id);
+    const afterPl = after.drawing.placements.find((pl) => pl.equipmentId === afterEq.id);
+    if (beforePl && afterPl && !afterPl.originId) {
+      afterPl.originId = beforePl.id;
+    }
+    if (beforePl && afterPl && afterPl.followBefore == null) {
+      afterPl.followBefore = placementFollowsBefore(afterPl, beforePl) ? true : false;
+    }
+  });
+
+  const usedBeforeEq = new Set(
+    after.equipment.map((eq) => eq.originId).filter(Boolean)
+  );
+  after.drawing.placements.forEach((afterPl) => {
+    const afterEq = after.equipment.find((eq) => eq.id === afterPl.equipmentId);
+    if (!afterEq || afterEq.originId) {
+      return;
+    }
+    const matchPl = before.drawing.placements.find((beforePl) => {
+      if (usedBeforeEq.has(beforePl.equipmentId)) {
+        return false;
+      }
+      const beforeEq = before.equipment.find((eq) => eq.id === beforePl.equipmentId);
+      if (!beforeEq || beforeEq.type !== afterEq.type) {
+        return false;
+      }
+      return snapMm(beforePl.xMm) === snapMm(afterPl.xMm)
+        && snapMm(beforePl.yMm) === snapMm(afterPl.yMm)
+        && beforePl.rotationDeg === afterPl.rotationDeg;
+    });
+    if (!matchPl) {
+      return;
+    }
+    afterEq.originId = matchPl.equipmentId;
+    afterPl.originId = matchPl.id;
+    usedBeforeEq.add(matchPl.equipmentId);
+  });
+}
+
+function normalizePage(raw) {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+  const page = emptyPage();
+  page.equipment = Array.isArray(raw.equipment)
+    ? raw.equipment.map(normalizeEquipment).filter(Boolean)
+    : [];
+  page.drawing.placements = Array.isArray(raw.drawing && raw.drawing.placements)
+    ? raw.drawing.placements.map(normalizePlacement).filter(Boolean)
+    : [];
+  const eqIds = new Set(page.equipment.map((item) => item.id));
+  page.drawing.placements = page.drawing.placements.filter((item) => eqIds.has(item.equipmentId));
+  const plIds = new Set(page.drawing.placements.map((item) => item.id));
+  page.drawing.groups = Array.isArray(raw.drawing && raw.drawing.groups)
+    ? raw.drawing.groups.map(normalizeGroup).filter(Boolean)
+    : [];
+  page.drawing.groups = page.drawing.groups
+    .map((group) => ({
+      id: group.id,
+      name: group.name,
+      placementIds: group.placementIds.filter((id) => plIds.has(id))
+    }))
+    .filter((group) => group.placementIds.length >= 2);
+  return page;
+}
+
+const DEFAULT_GROUP_NAME = "一式";
+
+function createEquipment(type, values) {
+  const def = equipmentTypeOf(type);
+  const dims = normalizeDimensions(type, values);
+  const equipment = {
+    id: makeId("eq"),
+    type: def.type,
+    name: String(values.name || def.label).slice(0, 40),
+    shape: values.shape || def.shape,
+    dimensions: dims,
+    // 側面図連携用。地盤面 = 0。地下はマイナス。
+    elevation: buildElevation(type, dims)
+  };
+  return equipment;
+}
+
+function buildElevation(type, dims) {
+  if (type === "pipe") {
+    return {
+      groundRefMm: 0,
+      topMm: dims.diameterMm == null ? null : dims.diameterMm,
+      bottomMm: 0,
+      note: dims.diameterMm == null ? "太さ未確認" : ""
+    };
+  }
+  if (type === "underground_tank") {
+    const burial = dims.burialDepthMm;
+    const diameter = dims.diameterMm;
+    if (burial == null) {
+      return {
+        groundRefMm: 0,
+        topMm: null,
+        bottomMm: null,
+        note: "埋設深さ未確認"
+      };
+    }
+    const top = -burial;
+    const bottom = diameter == null ? null : top - diameter;
+    return {
+      groundRefMm: 0,
+      topMm: top,
+      bottomMm: bottom,
+      note: ""
+    };
+  }
+  const height = dims.heightMm;
+  return {
+    groundRefMm: 0,
+    topMm: height == null ? null : height,
+    bottomMm: 0,
+    note: height == null ? "高さ未確認" : ""
+  };
+}
+
+function normalizeDimensions(type, values) {
+  const def = equipmentTypeOf(type);
+  const out = {};
+  def.fields.forEach((field) => {
+    out[field.key] = parseOptionalMm(values[field.key]);
+  });
+  if (type === "road") {
+    // 平面: 長さ→X方向、幅→Y方向
+    out.planWidthMm = out.lengthMm;
+    out.planDepthMm = out.widthMm;
+  } else if (type === "underground_tank") {
+    const length = parseOptionalMm(values.lengthMm);
+    const diameter = parseOptionalMm(values.diameterMm);
+    out.lengthMm = length;
+    out.diameterMm = diameter;
+    out.burialDepthMm = parseOptionalMm(values.burialDepthMm);
+    out.planWidthMm = length;
+    out.planDepthMm = diameter;
+  } else if (type === "bulk_2_9t" || type === "bulk_1t") {
+    // 平面は真円（○）：直径×直径
+    const diameter = parseOptionalMm(values.diameterMm);
+    out.diameterMm = diameter;
+    out.heightMm = parseOptionalMm(values.heightMm);
+    out.planWidthMm = diameter;
+    out.planDepthMm = diameter;
+  } else if (type === "pipe") {
+    out.diameterMm = parseOptionalMm(values.diameterMm);
+    out.lengthMm = parseOptionalMm(values.lengthMm);
+    out.planWidthMm = out.lengthMm;
+    out.planDepthMm = out.diameterMm != null ? out.diameterMm : MOVE_STEP_MM;
+  } else {
+    out.planWidthMm = out.widthMm;
+    out.planDepthMm = out.depthMm;
+  }
+  return out;
+}
+
+function roundMm(value) {
+  return Math.round(finite(value, 0));
+}
+
+function pipeEndpoints(placement) {
+  // 配置クリック時は方眼にスナップするが、長さ変更後の端点は連続座標のまま扱う。
+  // ここで 100mm スナップし直すと、斜め配管の長さ変更が潰れる。
+  const x1 = finite(placement.xMm, 0);
+  const y1 = finite(placement.yMm, 0);
+  const x2 = placement.endXMm != null ? finite(placement.endXMm, x1) : x1;
+  const y2 = placement.endYMm != null ? finite(placement.endYMm, y1) : y1;
+  return { x1: x1, y1: y1, x2: x2, y2: y2 };
+}
+
+function pipeLengthMm(placement) {
+  const ends = pipeEndpoints(placement);
+  return Math.max(0, Math.round(Math.hypot(ends.x2 - ends.x1, ends.y2 - ends.y1)));
+}
+
+function pipeBoundsMm(placement) {
+  const ends = pipeEndpoints(placement);
+  return {
+    minX: Math.min(ends.x1, ends.x2),
+    minY: Math.min(ends.y1, ends.y2),
+    maxX: Math.max(ends.x1, ends.x2),
+    maxY: Math.max(ends.y1, ends.y2)
+  };
+}
+
+function syncPipeDimensions(equipment, placement) {
+  if (!equipment || !isPipeType(equipment.type) || !placement) {
+    return;
+  }
+  const length = pipeLengthMm(placement);
+  const diameter = equipment.dimensions ? equipment.dimensions.diameterMm : null;
+  equipment.dimensions = equipment.dimensions || {};
+  equipment.dimensions.lengthMm = length;
+  equipment.dimensions.diameterMm = diameter;
+  equipment.dimensions.planWidthMm = Math.max(MOVE_STEP_MM, length);
+  equipment.dimensions.planDepthMm = diameter != null ? diameter : MOVE_STEP_MM;
+  equipment.elevation = buildElevation(equipment.type, equipment.dimensions);
+}
+
+/**
+ * 始点と向きを保ったまま、配管長さを変更する（終点を動かす）。
+ * 斜め配管でも指定長さになるよう、終点は方眼スナップしない。
+ * @returns {{ ok: boolean, message?: string, truncated?: boolean }}
+ */
+function setPipeLengthMm(placement, equipment, lengthMm, site) {
+  if (!placement || !equipment || !isPipeType(equipment.type)) {
+    return { ok: false, message: "配管を選べませんでした。" };
+  }
+  const length = snapMm(lengthMm);
+  if (length < MOVE_STEP_MM) {
+    return { ok: false, message: "長さは " + formatMm(MOVE_STEP_MM) + " 以上にしてください。" };
+  }
+  const ends = pipeEndpoints(placement);
+  let dx = ends.x2 - ends.x1;
+  let dy = ends.y2 - ends.y1;
+  const current = Math.hypot(dx, dy);
+  let ux;
+  let uy;
+  if (current < 1) {
+    ux = 1;
+    uy = 0;
+  } else {
+    const ax = Math.abs(dx);
+    const ay = Math.abs(dy);
+    // ほぼ水平／垂直なら軸に揃える（微小な斜めズレで長さ変更が不安定になるのを防ぐ）
+    if (ay < MOVE_STEP_MM && ax >= ay) {
+      ux = dx >= 0 ? 1 : -1;
+      uy = 0;
+    } else if (ax < MOVE_STEP_MM && ay >= ax) {
+      ux = 0;
+      uy = dy >= 0 ? 1 : -1;
+    } else {
+      ux = dx / current;
+      uy = dy / current;
+    }
+  }
+  placement.xMm = ends.x1;
+  placement.yMm = ends.y1;
+  placement.endXMm = ends.x1 + ux * length;
+  placement.endYMm = ends.y1 + uy * length;
+  if (site) {
+    clampPlacementToSite(placement, equipment, site);
+  } else {
+    syncPipeDimensions(equipment, placement);
+  }
+  const actual = pipeLengthMm(placement);
+  if (actual < length - 1) {
+    return {
+      ok: true,
+      truncated: true,
+      message: "敷地の端まで伸ばしました（" + formatMm(actual) + "）。"
+    };
+  }
+  return { ok: true };
+}
+
+function footprintOf(equipment, placement) {
+  if (equipment && isPipeType(equipment.type) && placement) {
+    const bounds = pipeBoundsMm(placement);
+    return {
+      widthMm: Math.max(MOVE_STEP_MM, bounds.maxX - bounds.minX),
+      depthMm: Math.max(MOVE_STEP_MM, bounds.maxY - bounds.minY)
+    };
+  }
+  const d = (equipment && equipment.dimensions) || {};
+  let w = d.planWidthMm;
+  let depth = d.planDepthMm;
+  if (w == null) {
+    w = d.widthMm != null ? d.widthMm : d.lengthMm;
+  }
+  if (depth == null) {
+    depth = d.depthMm != null ? d.depthMm : d.diameterMm;
+  }
+  // 必須寸法が欠ける場合でも描画できるように最小プレースホルダは使わない。
+  // 呼び出し側で配置前に必須チェックする。
+  return {
+    widthMm: w,
+    depthMm: depth
+  };
+}
+
+function createPlacement(equipmentId, xMm, yMm) {
+  return {
+    id: makeId("pl"),
+    equipmentId: equipmentId,
+    xMm: snapMm(xMm),
+    yMm: snapMm(yMm),
+    rotationDeg: 0,
+    labelOffsets: emptyLabelOffsets()
+  };
+}
+
+function createPipePlacement(equipmentId, x1Mm, y1Mm, x2Mm, y2Mm) {
+  return {
+    id: makeId("pl"),
+    equipmentId: equipmentId,
+    xMm: snapMm(x1Mm),
+    yMm: snapMm(y1Mm),
+    endXMm: snapMm(x2Mm),
+    endYMm: snapMm(y2Mm),
+    rotationDeg: 0,
+    labelOffsets: emptyLabelOffsets()
+  };
+}
+
+function emptyLabelOffsets() {
+  return {};
+}
+
+function normalizeLabelOffsets(raw) {
+  const out = emptyLabelOffsets();
+  if (!raw || typeof raw !== "object") {
+    return out;
+  }
+  ["name", "top", "side", "inner"].forEach((key) => {
+    const item = raw[key];
+    if (!item || typeof item !== "object") {
+      return;
+    }
+    const dxMm = finite(item.dxMm, 0);
+    const dyMm = finite(item.dyMm, 0);
+    if (dxMm === 0 && dyMm === 0) {
+      return;
+    }
+    out[key] = { dxMm: dxMm, dyMm: dyMm };
+  });
+  return out;
+}
+
+function ensureLabelOffsets(placement) {
+  if (!placement.labelOffsets || typeof placement.labelOffsets !== "object") {
+    placement.labelOffsets = emptyLabelOffsets();
+  }
+  return placement.labelOffsets;
+}
+
+function setLabelOffset(placement, key, dxMm, dyMm) {
+  const offsets = ensureLabelOffsets(placement);
+  if (!dxMm && !dyMm) {
+    delete offsets[key];
+    return;
+  }
+  offsets[key] = { dxMm: finite(dxMm, 0), dyMm: finite(dyMm, 0) };
+}
+
+function clearLabelOffsets(placement) {
+  placement.labelOffsets = emptyLabelOffsets();
+}
+
+function findEquipment(doc, id) {
+  return doc.equipment.find((item) => item.id === id) || null;
+}
+
+function findPlacement(doc, id) {
+  return doc.drawing.placements.find((item) => item.id === id) || null;
+}
+
+function findPlacementByEquipment(doc, equipmentId) {
+  return doc.drawing.placements.find((item) => item.equipmentId === equipmentId) || null;
+}
+
+function pairedItems(doc) {
+  return doc.drawing.placements.map((placement) => ({
+    placement: placement,
+    equipment: findEquipment(doc, placement.equipmentId)
+  })).filter((pair) => pair.equipment);
+}
+
+function contentBoundsMm(doc) {
+  if (!doc) {
+    return null;
+  }
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let found = false;
+  pairedItems(doc).forEach((pair) => {
+    if (isPipeType(pair.equipment.type)) {
+      const bounds = pipeBoundsMm(pair.placement);
+      if (bounds.maxX === bounds.minX && bounds.maxY === bounds.minY) {
+        return;
+      }
+      found = true;
+      minX = Math.min(minX, bounds.minX);
+      minY = Math.min(minY, bounds.minY);
+      maxX = Math.max(maxX, bounds.maxX);
+      maxY = Math.max(maxY, bounds.maxY);
+      return;
+    }
+    const fp = footprintOf(pair.equipment, pair.placement);
+    const w = fp.widthMm || 0;
+    const d = fp.depthMm || 0;
+    if (w <= 0 || d <= 0) {
+      return;
+    }
+    found = true;
+    minX = Math.min(minX, pair.placement.xMm);
+    minY = Math.min(minY, pair.placement.yMm);
+    maxX = Math.max(maxX, pair.placement.xMm + w);
+    maxY = Math.max(maxY, pair.placement.yMm + d);
+  });
+  if (!found) {
+    return null;
+  }
+  // 余白を少し持たせる
+  const pad = 1000;
+  return {
+    minX: Math.max(0, minX - pad),
+    minY: Math.max(0, minY - pad),
+    maxX: maxX + pad,
+    maxY: maxY + pad
+  };
+}
+
+function unionBoundsMm(a, b) {
+  if (!a) {
+    return b;
+  }
+  if (!b) {
+    return a;
+  }
+  return {
+    minX: Math.min(a.minX, b.minX),
+    minY: Math.min(a.minY, b.minY),
+    maxX: Math.max(a.maxX, b.maxX),
+    maxY: Math.max(a.maxY, b.maxY)
+  };
+}
+
+function updateEquipmentDimensions(equipment, values) {
+  const dims = normalizeDimensions(equipment.type, {
+    ...flattenDims(equipment),
+    ...values,
+    name: values.name != null ? values.name : equipment.name
+  });
+  equipment.name = String(values.name != null ? values.name : equipment.name).slice(0, 40);
+  if (values.shape) {
+    equipment.shape = values.shape;
+  }
+  equipment.dimensions = dims;
+  equipment.elevation = buildElevation(equipment.type, dims);
+}
+
+function flattenDims(equipment) {
+  const d = equipment.dimensions || {};
+  return {
+    name: equipment.name,
+    shape: equipment.shape,
+    widthMm: d.widthMm,
+    depthMm: d.depthMm,
+    heightMm: d.heightMm,
+    lengthMm: d.lengthMm,
+    diameterMm: d.diameterMm,
+    burialDepthMm: d.burialDepthMm
+  };
+}
+
+function nudgePlacement(placement, dxMm, dyMm, site) {
+  placement.xMm = clamp(snapMm(placement.xMm + dxMm), 0, site.widthMm);
+  placement.yMm = clamp(snapMm(placement.yMm + dyMm), 0, site.depthMm);
+}
+
+function clipPipeEndToSite(x1, y1, x2, y2, site) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  let tMax = 1;
+  if (dx > 0) {
+    tMax = Math.min(tMax, (site.widthMm - x1) / dx);
+  } else if (dx < 0) {
+    tMax = Math.min(tMax, (0 - x1) / dx);
+  }
+  if (dy > 0) {
+    tMax = Math.min(tMax, (site.depthMm - y1) / dy);
+  } else if (dy < 0) {
+    tMax = Math.min(tMax, (0 - y1) / dy);
+  }
+  tMax = Math.max(0, Math.min(1, tMax));
+  return { x: x1 + dx * tMax, y: y1 + dy * tMax };
+}
+
+function clampPlacementToSite(placement, equipment, site) {
+  if (equipment && isPipeType(equipment.type)) {
+    // 始点を敷地内へ。はみ出し分は終点も同じだけずらして長さを維持する。
+    const x0 = finite(placement.xMm, 0);
+    const y0 = finite(placement.yMm, 0);
+    const endX0 = placement.endXMm != null ? finite(placement.endXMm, x0) : x0;
+    const endY0 = placement.endYMm != null ? finite(placement.endYMm, y0) : y0;
+    const x1 = clamp(x0, 0, site.widthMm);
+    const y1 = clamp(y0, 0, site.depthMm);
+    const shiftedEnd = { x: endX0 + (x1 - x0), y: endY0 + (y1 - y0) };
+    // 終点がまだ外なら、向きを保ったまま敷地端まで縮める（軸別に切ると斜め長さが壊れる）
+    const clipped = clipPipeEndToSite(x1, y1, shiftedEnd.x, shiftedEnd.y, site);
+    placement.xMm = x1;
+    placement.yMm = y1;
+    placement.endXMm = clipped.x;
+    placement.endYMm = clipped.y;
+    syncPipeDimensions(equipment, placement);
+    return;
+  }
+  const fp = footprintOf(equipment, placement);
+  const w = fp.widthMm || 0;
+  const d = fp.depthMm || 0;
+  placement.xMm = clamp(snapMm(placement.xMm), 0, Math.max(0, site.widthMm - w));
+  placement.yMm = clamp(snapMm(placement.yMm), 0, Math.max(0, site.depthMm - d));
+}
+
+/**
+ * 選択中の配置を最前面または最背面へ移す。
+ * 配列の後ろほど上に描画／優先選択される。
+ * 選択同士の相対順は保つ。
+ * @param {"front"|"back"} direction
+ * @returns {boolean}
+ */
+function reorderPlacements(doc, placementIds, direction) {
+  if (!doc || !doc.drawing || !Array.isArray(placementIds) || !placementIds.length) {
+    return false;
+  }
+  const idSet = new Set(placementIds);
+  const list = doc.drawing.placements;
+  const moving = [];
+  const staying = [];
+  list.forEach((placement) => {
+    if (idSet.has(placement.id)) {
+      moving.push(placement);
+    } else {
+      staying.push(placement);
+    }
+  });
+  if (!moving.length || moving.length === list.length) {
+    return false;
+  }
+  doc.drawing.placements = direction === "back"
+    ? moving.concat(staying)
+    : staying.concat(moving);
+  return true;
+}
+
+function removePair(doc, placementId) {
+  const placement = findPlacement(doc, placementId);
+  if (!placement) {
+    return;
+  }
+  doc.drawing.placements = doc.drawing.placements.filter((item) => item.id !== placementId);
+  doc.equipment = doc.equipment.filter((item) => item.id !== placement.equipmentId);
+  detachPlacementFromGroups(doc, placementId);
+}
+
+function ensureGroups(doc) {
+  if (!doc.drawing.groups) {
+    doc.drawing.groups = [];
+  }
+  return doc.drawing.groups;
+}
+
+function findGroup(doc, groupId) {
+  return ensureGroups(doc).find((item) => item.id === groupId) || null;
+}
+
+function findGroupByPlacement(doc, placementId) {
+  return ensureGroups(doc).find((group) => (group.placementIds || []).includes(placementId)) || null;
+}
+
+function getGroupPlacements(doc, group) {
+  if (!group) {
+    return [];
+  }
+  return (group.placementIds || [])
+    .map((id) => findPlacement(doc, id))
+    .filter(Boolean);
+}
+
+function detachPlacementFromGroups(doc, placementId) {
+  const groups = ensureGroups(doc);
+  groups.forEach((group) => {
+    group.placementIds = (group.placementIds || []).filter((id) => id !== placementId);
+  });
+  doc.drawing.groups = groups.filter((group) => (group.placementIds || []).length >= 2);
+}
+
+const COPY_OFFSET_MM = 1000;
+
+/**
+ * 選択中の配置をクリップボード用データにする。
+ * @returns {{ items: Array, groups: Array } | null}
+ */
+function captureClipboard(doc, placementIds) {
+  if (!doc || !placementIds || !placementIds.length) {
+    return null;
+  }
+  const idSet = new Set(placementIds);
+  const items = [];
+  placementIds.forEach((placementId) => {
+    const placement = findPlacement(doc, placementId);
+    const equipment = placement ? findEquipment(doc, placement.equipmentId) : null;
+    if (!placement || !equipment) {
+      return;
+    }
+    items.push({
+      equipment: JSON.parse(JSON.stringify({
+        type: equipment.type,
+        name: equipment.name,
+        shape: equipment.shape,
+        dimensions: equipment.dimensions || {},
+        elevation: equipment.elevation || null
+      })),
+      placement: JSON.parse(JSON.stringify({
+        xMm: placement.xMm,
+        yMm: placement.yMm,
+        endXMm: placement.endXMm,
+        endYMm: placement.endYMm,
+        rotationDeg: placement.rotationDeg || 0,
+        labelOffsets: normalizeLabelOffsets(placement.labelOffsets)
+      })),
+      sourcePlacementId: placement.id
+    });
+  });
+  if (!items.length) {
+    return null;
+  }
+  const groups = (doc.drawing.groups || [])
+    .filter((group) => (group.placementIds || []).every((id) => idSet.has(id))
+      && (group.placementIds || []).length >= 2)
+    .map((group) => ({
+      name: group.name || DEFAULT_GROUP_NAME,
+      sourcePlacementIds: group.placementIds.slice()
+    }));
+  return { items: items, groups: groups };
+}
+
+/**
+ * クリップボード内容を図面へ貼り付ける。
+ * @returns {{ placements: Array, count: number } | null}
+ */
+function pasteClipboardIntoDoc(doc, clipboard, pasteIndex) {
+  if (!doc || !clipboard || !clipboard.items || !clipboard.items.length) {
+    return null;
+  }
+  const step = Math.max(1, Math.round(Number(pasteIndex) || 1));
+  const dx = COPY_OFFSET_MM * step;
+  const dy = COPY_OFFSET_MM * step;
+  const idMap = {};
+  const newPlacements = [];
+  clipboard.items.forEach((item) => {
+    const srcEq = item.equipment || {};
+    const srcPl = item.placement || {};
+    const equipment = {
+      id: makeId("eq"),
+      type: srcEq.type,
+      name: String(srcEq.name || equipmentTypeOf(srcEq.type).label).slice(0, 40),
+      shape: srcEq.shape || equipmentTypeOf(srcEq.type).shape,
+      dimensions: JSON.parse(JSON.stringify(srcEq.dimensions || {})),
+      elevation: srcEq.elevation
+        ? JSON.parse(JSON.stringify(srcEq.elevation))
+        : buildElevation(srcEq.type, srcEq.dimensions || {})
+    };
+    const placement = {
+      id: makeId("pl"),
+      equipmentId: equipment.id,
+      xMm: finite(srcPl.xMm, 0) + dx,
+      yMm: finite(srcPl.yMm, 0) + dy,
+      rotationDeg: [0, 90, 180, 270].includes(srcPl.rotationDeg) ? srcPl.rotationDeg : 0,
+      labelOffsets: normalizeLabelOffsets(srcPl.labelOffsets)
+    };
+    if (srcPl.endXMm != null && Number.isFinite(Number(srcPl.endXMm))) {
+      placement.endXMm = finite(srcPl.endXMm, placement.xMm) + dx;
+    }
+    if (srcPl.endYMm != null && Number.isFinite(Number(srcPl.endYMm))) {
+      placement.endYMm = finite(srcPl.endYMm, placement.yMm) + dy;
+    }
+    if (isPipeType(equipment.type)) {
+      syncPipeDimensions(equipment, placement);
+    }
+    doc.equipment.push(equipment);
+    doc.drawing.placements.push(placement);
+    newPlacements.push(placement);
+    if (item.sourcePlacementId) {
+      idMap[item.sourcePlacementId] = placement.id;
+    }
+  });
+  // 相対位置を保ったまま、敷地内へまとめて収める
+  movePlacementsBy(doc, newPlacements, 0, 0, doc.site);
+  (clipboard.groups || []).forEach((group) => {
+    const nextIds = (group.sourcePlacementIds || [])
+      .map((id) => idMap[id])
+      .filter(Boolean);
+    if (nextIds.length >= 2) {
+      createGroup(doc, nextIds, group.name || DEFAULT_GROUP_NAME);
+    }
+  });
+  return { placements: newPlacements, count: newPlacements.length };
+}
+
+function createGroup(doc, placementIds, name) {
+  const unique = Array.from(new Set(placementIds.filter((id) => findPlacement(doc, id))));
+  if (unique.length < 2) {
+    return null;
+  }
+  // 既存グループから外してから新しい一式へ
+  unique.forEach((id) => detachPlacementFromGroups(doc, id));
+  const group = {
+    id: makeId("grp"),
+    name: String(name || DEFAULT_GROUP_NAME).slice(0, 40),
+    placementIds: unique
+  };
+  ensureGroups(doc).push(group);
+  return group;
+}
+
+function ungroup(doc, groupId) {
+  const groups = ensureGroups(doc);
+  const before = groups.length;
+  doc.drawing.groups = groups.filter((group) => group.id !== groupId);
+  return doc.drawing.groups.length < before;
+}
+
+function groupBoundsMm(doc, placements) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  placements.forEach((placement) => {
+    const equipment = findEquipment(doc, placement.equipmentId);
+    if (equipment && isPipeType(equipment.type)) {
+      const bounds = pipeBoundsMm(placement);
+      minX = Math.min(minX, bounds.minX);
+      minY = Math.min(minY, bounds.minY);
+      maxX = Math.max(maxX, bounds.maxX);
+      maxY = Math.max(maxY, bounds.maxY);
+      return;
+    }
+    const fp = footprintOf(equipment || {}, placement);
+    const w = fp.widthMm || 0;
+    const d = fp.depthMm || 0;
+    minX = Math.min(minX, placement.xMm);
+    minY = Math.min(minY, placement.yMm);
+    maxX = Math.max(maxX, placement.xMm + w);
+    maxY = Math.max(maxY, placement.yMm + d);
+  });
+  if (!Number.isFinite(minX)) {
+    return null;
+  }
+  return { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
+}
+
+function movePlacementsBy(doc, placements, dxMm, dyMm, site) {
+  if (!placements.length) {
+    return;
+  }
+  const bounds = groupBoundsMm(doc, placements);
+  if (!bounds) {
+    return;
+  }
+  let dx = snapMm(dxMm);
+  let dy = snapMm(dyMm);
+  const nextMinX = bounds.minX + dx;
+  const nextMinY = bounds.minY + dy;
+  const nextMaxX = bounds.maxX + dx;
+  const nextMaxY = bounds.maxY + dy;
+  if (nextMinX < 0) {
+    dx -= nextMinX;
+  }
+  if (nextMinY < 0) {
+    dy -= nextMinY;
+  }
+  if (nextMaxX > site.widthMm) {
+    dx -= nextMaxX - site.widthMm;
+  }
+  if (nextMaxY > site.depthMm) {
+    dy -= nextMaxY - site.depthMm;
+  }
+  dx = snapMm(dx);
+  dy = snapMm(dy);
+  placements.forEach((placement) => {
+    const equipment = findEquipment(doc, placement.equipmentId);
+    const isPipe = equipment && isPipeType(equipment.type);
+    if (isPipe) {
+      // 配管は両端を同じだけ動かして長さ・向きを保つ（個別スナップはしない）
+      const x0 = finite(placement.xMm, 0);
+      const y0 = finite(placement.yMm, 0);
+      const endX = placement.endXMm != null ? finite(placement.endXMm, x0) : x0;
+      const endY = placement.endYMm != null ? finite(placement.endYMm, y0) : y0;
+      placement.xMm = x0 + dx;
+      placement.yMm = y0 + dy;
+      placement.endXMm = endX + dx;
+      placement.endYMm = endY + dy;
+      syncPipeDimensions(equipment, placement);
+      return;
+    }
+    placement.xMm = snapMm(placement.xMm + dx);
+    placement.yMm = snapMm(placement.yMm + dy);
+    if (placement.endXMm != null || placement.endYMm != null) {
+      placement.endXMm = snapMm((placement.endXMm != null ? placement.endXMm : placement.xMm) + dx);
+      placement.endYMm = snapMm((placement.endYMm != null ? placement.endYMm : placement.yMm) + dy);
+    }
+  });
+}
+
+function normalizeGroup(raw) {
+  if (!raw || !raw.id || !Array.isArray(raw.placementIds)) {
+    return null;
+  }
+  const ids = raw.placementIds.map(String).filter(Boolean);
+  if (ids.length < 2) {
+    return null;
+  }
+  return {
+    id: String(raw.id),
+    name: String(raw.name || DEFAULT_GROUP_NAME).slice(0, 40),
+    placementIds: Array.from(new Set(ids))
+  };
+}
+
+function loadDocument() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_V2);
+    if (!raw) {
+      return { doc: emptyDocument(), warning: "" };
+    }
+    const data = JSON.parse(raw);
+    if (!data || data.schema !== SCHEMA_ID) {
+      return {
+        doc: emptyDocument(),
+        warning: "V2形式ではないデータだったため、新規図面を開きました。"
+      };
+    }
+    return { doc: normalizeDocument(data), warning: "" };
+  } catch (error) {
+    return {
+      doc: emptyDocument(),
+      warning: "保存データを読めなかったため、新規図面を開きました。"
+    };
+  }
+}
+
+function saveDocument(doc) {
+  try {
+    localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(doc));
+    return { ok: true, message: "" };
+  } catch (error) {
+    return { ok: false, message: "ブラウザへの保存に失敗しました。" };
+  }
+}
+
+function normalizeDocument(data) {
+  const doc = emptyDocument();
+  doc.version = 2;
+  doc.meta = normalizeMeta(data && data.meta);
+  doc.site.widthMm = SITE_WIDTH_MM;
+  doc.site.depthMm = SITE_DEPTH_MM;
+  doc.site.groundLevelMm = 0;
+
+  if (data.pages && data.pages.before) {
+    doc.pages.before = normalizePage(data.pages.before) || emptyPage();
+    doc.pages.after = data.pages.after ? normalizePage(data.pages.after) : null;
+  } else {
+    // 旧形式（equipment / drawing 直下）→ ビフォアへ移行
+    doc.pages.before = normalizePage({
+      equipment: data.equipment,
+      drawing: data.drawing
+    }) || emptyPage();
+    doc.pages.after = null;
+  }
+
+  const requested = data.activePage;
+  if (requested === PAGE_COMPARE && hasAfterPage(doc)) {
+    doc.activePage = PAGE_COMPARE;
+  } else if (requested === PAGE_AFTER && hasAfterPage(doc)) {
+    doc.activePage = PAGE_AFTER;
+  } else {
+    doc.activePage = PAGE_BEFORE;
+  }
+  return doc;
+}
+
+function normalizeEquipment(raw) {
+  if (!raw || !raw.id || !raw.type) {
+    return null;
+  }
+  const def = equipmentTypeOf(raw.type);
+  const values = Object.assign({}, raw.dimensions || {}, {
+    name: raw.name,
+    shape: raw.shape || def.shape
+  });
+  const dims = normalizeDimensions(def.type, values);
+  const equipment = {
+    id: String(raw.id),
+    type: def.type,
+    name: String(raw.name || def.label).slice(0, 40),
+    shape: raw.shape || def.shape,
+    dimensions: dims,
+    elevation: raw.elevation && typeof raw.elevation === "object"
+      ? raw.elevation
+      : buildElevation(def.type, dims)
+  };
+  if (raw.originId) {
+    equipment.originId = String(raw.originId);
+  }
+  return equipment;
+}
+
+function normalizePlacement(raw) {
+  if (!raw || !raw.id || !raw.equipmentId) {
+    return null;
+  }
+  const placement = {
+    id: String(raw.id),
+    equipmentId: String(raw.equipmentId),
+    xMm: snapMm(finite(raw.xMm, 0)),
+    yMm: snapMm(finite(raw.yMm, 0)),
+    rotationDeg: [0, 90, 180, 270].includes(raw.rotationDeg) ? raw.rotationDeg : 0,
+    labelOffsets: normalizeLabelOffsets(raw.labelOffsets)
+  };
+  if (raw.endXMm != null && Number.isFinite(Number(raw.endXMm))) {
+    placement.endXMm = roundMm(raw.endXMm);
+  }
+  if (raw.endYMm != null && Number.isFinite(Number(raw.endYMm))) {
+    placement.endYMm = roundMm(raw.endYMm);
+  }
+  if (raw.originId) {
+    placement.originId = String(raw.originId);
+  }
+  if (raw.followBefore === false) {
+    placement.followBefore = false;
+  } else if (raw.followBefore === true) {
+    placement.followBefore = true;
+  }
+  return placement;
+}
+
+function parseOptionalMm(value) {
+  if (value === "" || value == null) {
+    return null;
+  }
+  // 配管の「25A」など、末尾の A が混ざっても数字だけ取る
+  const cleaned = String(value).replace(/,/g, "").replace(/\s*A\s*$/i, "").trim();
+  const number = Number(cleaned);
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+  return Math.round(number);
+}
+
+function snapMm(value) {
+  return Math.round(finite(value, 0) / MOVE_STEP_MM) * MOVE_STEP_MM;
+}
+
+function formatMm(value) {
+  if (value == null || !Number.isFinite(value)) {
+    return "未確認";
+  }
+  return Number(value).toLocaleString("ja-JP") + "mm";
+}
+
+function makeId(prefix) {
+  return prefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+}
+
+function finite(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function requiredDimsPresent(type, values) {
+  const def = equipmentTypeOf(type);
+  const missing = [];
+  def.fields.forEach((field) => {
+    if (!field.required) {
+      return;
+    }
+    const parsed = parseOptionalMm(values[field.key]);
+    if (parsed == null || parsed <= 0) {
+      missing.push(field.label);
+    }
+  });
+  return missing;
+}
+
+</script>
+  <script>
+// 平面図描画。表示用の方眼間隔と、実移動単位(100mm)は分離する。
+
+const DrawView = {
+  scale: 0.012, // px / mm
+  offsetX: 40,
+  offsetY: 40,
+  minScale: 0.004,
+  maxScale: 0.4,
+  printMode: false,
+  _labelHitList: []
+};
+
+function printLabelBoost(basePx) {
+  const base = Math.max(10, Number(basePx) || 11);
+  if (!DrawView.printMode) {
+    return base;
+  }
+  // 印刷キャンバスは高解像度なので、画面より大きくしないと紙面で潰れる
+  return Math.max(17, Math.round(base * 1.65));
+}
+
+function worldToScreen(xMm, yMm) {
+  return {
+    x: DrawView.offsetX + xMm * DrawView.scale,
+    y: DrawView.offsetY + yMm * DrawView.scale
+  };
+}
+
+function screenToWorld(xPx, yPx) {
+  return {
+    xMm: (xPx - DrawView.offsetX) / DrawView.scale,
+    yMm: (yPx - DrawView.offsetY) / DrawView.scale
+  };
+}
+
+function fitSiteToCanvas(canvas, site) {
+  const pad = 48;
+  const sx = (canvas.clientWidth - pad * 2) / site.widthMm;
+  const sy = (canvas.clientHeight - pad * 2) / site.depthMm;
+  DrawView.scale = clamp(Math.min(sx, sy), DrawView.minScale, DrawView.maxScale);
+  const w = site.widthMm * DrawView.scale;
+  const h = site.depthMm * DrawView.scale;
+  DrawView.offsetX = (canvas.clientWidth - w) / 2;
+  DrawView.offsetY = (canvas.clientHeight - h) / 2;
+}
+
+function zoomAt(canvas, factor, cx, cy) {
+  const before = screenToWorld(cx, cy);
+  DrawView.scale = clamp(DrawView.scale * factor, DrawView.minScale, DrawView.maxScale);
+  const after = worldToScreen(before.xMm, before.yMm);
+  DrawView.offsetX += cx - after.x;
+  DrawView.offsetY += cy - after.y;
+}
+
+function chooseGridStepMm() {
+  const candidates = [100, 200, 500, 1000, 2000, 5000, 10000];
+  let best = candidates[candidates.length - 1];
+  for (let i = 0; i < candidates.length; i += 1) {
+    const px = candidates[i] * DrawView.scale;
+    if (px >= 24) {
+      best = candidates[i];
+      break;
+    }
+  }
+  return best;
+}
+
+/**
+ * @param {"before"|"after"} pageRole
+ * @returns {"muted"|"emphasis"}
+ */
+function resolveDrawEmphasis(equipment, placement, pageRole) {
+  if (pageRole === "after") {
+    return isAfterOwnedItem(equipment, placement) ? "emphasis" : "muted";
+  }
+  // ビフォア画面は淡いパステルで統一
+  return "muted";
+}
+
+// アフター変更は設備種類ごとに色分け（青・緑・黄・紫・桃色など）
+const AFTER_ACCENT_FALLBACK = {
+  fill: "#6faad4",
+  stroke: "#1e4f7a",
+  glow: "rgba(30, 90, 160, 0.38)",
+  label: "#143a5c"
+};
+const AFTER_ACCENT_BY_TYPE = {
+  foundation: { fill: "#6e737a", stroke: "#2f343a", glow: "rgba(47, 52, 58, 0.42)", label: "#1e2226" },
+  road: { fill: "#9aa3ad", stroke: "#4a5560", glow: "rgba(74, 85, 96, 0.35)", label: "#2f3840" },
+  underground_tank: { fill: "#6faad4", stroke: "#1e4f7a", glow: "rgba(30, 90, 160, 0.38)", label: "#143a5c" },
+  pump_house: { fill: "#d4a574", stroke: "#8a5528", glow: "rgba(138, 85, 40, 0.36)", label: "#5c3718" },
+  greenbelt: { fill: "#7ec98a", stroke: "#2f7a3d", glow: "rgba(47, 122, 61, 0.38)", label: "#1d4f28" },
+  parking: { fill: "#b0b8c2", stroke: "#5a6570", glow: "rgba(90, 101, 112, 0.35)", label: "#3a424a" },
+  factory: { fill: "#e0b87a", stroke: "#a06a28", glow: "rgba(160, 106, 40, 0.36)", label: "#6a4210" },
+  office: { fill: "#8eb6e0", stroke: "#2f5f8f", glow: "rgba(47, 95, 143, 0.38)", label: "#1a3f66" },
+  bulk_2_9t: { fill: "#7ec8e8", stroke: "#1f6a9a", glow: "rgba(31, 106, 154, 0.38)", label: "#134866" },
+  bulk_1t: { fill: "#5bc4c4", stroke: "#1a7a7a", glow: "rgba(26, 122, 122, 0.38)", label: "#0f5555" },
+  vaporizer: { fill: "#f0c94a", stroke: "#b8860b", glow: "rgba(184, 134, 11, 0.4)", label: "#7a5808" },
+  heater: { fill: "#f0a060", stroke: "#c45c20", glow: "rgba(196, 92, 32, 0.38)", label: "#8a3a10" },
+  pipe: { fill: "#e878a0", stroke: "#a83868", glow: "rgba(168, 56, 104, 0.4)", label: "#7a2448" },
+  other: { fill: "#c9a0e0", stroke: "#7a3d9a", glow: "rgba(122, 61, 154, 0.38)", label: "#4e2470" }
+};
+
+// ビフォア／映し出し用の淡いパステル（色相は残し、明るさと淡さをそろえる）
+const BEFORE_PASTEL_FALLBACK = {
+  fill: "#efe8dc",
+  stroke: "#a89a82",
+  label: "#6f6758"
+};
+const BEFORE_PASTEL_BY_TYPE = {
+  foundation: { fill: "#efe8dc", stroke: "#a89a82", label: "#6f6758" },
+  road: { fill: "#dde2e7", stroke: "#8a929c", label: "#555b63" },
+  underground_tank: { fill: "#e4ecf4", stroke: "#7f9bb4", label: "#3c5670" },
+  pump_house: { fill: "#f2e5d0", stroke: "#c4a07a", label: "#8a6a45" },
+  greenbelt: { fill: "#e4f0dc", stroke: "#92b984", label: "#4f7a3d" },
+  parking: { fill: "#e6eaef", stroke: "#97a0aa", label: "#6e7680" },
+  factory: { fill: "#f3e7d4", stroke: "#c9a882", label: "#7a5e3a" },
+  office: { fill: "#e4ecf4", stroke: "#8fa6bc", label: "#4f657a" },
+  bulk_2_9t: { fill: "#dde8f2", stroke: "#7f9bb4", label: "#456379" },
+  bulk_1t: { fill: "#d8e8ee", stroke: "#7aa6b0", label: "#3a5874" },
+  vaporizer: { fill: "#f8e9c8", stroke: "#d0a85a", label: "#8a5a18" },
+  heater: { fill: "#f3d5c4", stroke: "#d08a6e", label: "#8d3d22" },
+  pipe: { fill: "#f0d2c4", stroke: "#d08a6e", label: "#8a4a2e" },
+  other: { fill: "#efe8dc", stroke: "#a89a82", label: "#6f6758" }
+};
+
+function afterAccentOf(type) {
+  return AFTER_ACCENT_BY_TYPE[type] || AFTER_ACCENT_FALLBACK;
+}
+
+function beforePastelOf(type) {
+  return BEFORE_PASTEL_BY_TYPE[type] || BEFORE_PASTEL_FALLBACK;
+}
+
+function emphasisAlpha(emphasis, selected) {
+  if (selected) {
+    return 1;
+  }
+  // パステル自体が薄いので、透明度はあまり下げない
+  if (emphasis === "emphasis") {
+    return 1;
+  }
+  return DrawView.printMode ? 0.94 : 0.9;
+}
+
+function mixHex(hexA, hexB, amount) {
+  const parse = (hex) => {
+    const raw = String(hex || "#cccccc").replace("#", "");
+    if (raw.length !== 6) {
+      return [200, 200, 200];
+    }
+    return [0, 2, 4].map((i) => parseInt(raw.slice(i, i + 2), 16));
+  };
+  const a = parse(hexA);
+  const b = parse(hexB);
+  const t = Math.max(0, Math.min(1, amount));
+  return "#" + a.map((ch, i) => {
+    return Math.round(ch + (b[i] - ch) * t).toString(16).padStart(2, "0");
+  }).join("");
+}
+
+function mixHexWithWhite(hex, amount) {
+  return mixHex(hex, "#ffffff", amount);
+}
+
+function emphasisFill(baseFill, emphasis, type) {
+  if (emphasis === "emphasis") {
+    return mixHex(baseFill, afterAccentOf(type).fill, 0.82);
+  }
+  // ビフォア／映し出し：淡いパステル（色相は残す）
+  return mixHex(baseFill, beforePastelOf(type).fill, 0.88);
+}
+
+function emphasisStroke(baseStroke, emphasis, selected, type) {
+  if (selected || emphasis === "emphasis") {
+    return afterAccentOf(type).stroke;
+  }
+  return mixHex(baseStroke, beforePastelOf(type).stroke, 0.75);
+}
+
+function drawScene(canvas, doc, selectedPlacementIds, sizeOverride, options) {
+  const selected = selectedPlacementIds instanceof Set
+    ? selectedPlacementIds
+    : new Set(selectedPlacementIds ? [selectedPlacementIds] : []);
+  const pageRole = options && options.pageRole === "after" ? "after" : "before";
+  const prevPrintMode = DrawView.printMode;
+  DrawView.printMode = !!(options && options.printMode);
+  const ctx = canvas.getContext("2d");
+  const fixed = sizeOverride && sizeOverride.width && sizeOverride.height;
+  const dpr = fixed ? 1 : (window.devicePixelRatio || 1);
+  const cssW = fixed ? sizeOverride.width : (canvas.clientWidth || 1);
+  const cssH = fixed ? sizeOverride.height : (canvas.clientHeight || 1);
+  if (canvas.width !== Math.floor(cssW * dpr) || canvas.height !== Math.floor(cssH * dpr)) {
+    canvas.width = Math.floor(cssW * dpr);
+    canvas.height = Math.floor(cssH * dpr);
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  // 印刷は白地を優先（グレー紙面にならないようにする）
+  ctx.fillStyle = DrawView.printMode
+    ? "#ffffff"
+    : (pageRole === "after" ? "#f5f7fa" : "#fafaf8");
+  ctx.fillRect(0, 0, cssW, cssH);
+
+  drawSiteFrame(ctx, doc.site);
+  drawGrid(ctx, doc.site, cssW, cssH);
+
+  const pairs = pairedItems(doc).map((pair) => ({
+    equipment: pair.equipment,
+    placement: pair.placement,
+    emphasis: resolveDrawEmphasis(pair.equipment, pair.placement, pageRole)
+  }));
+  // 薄いもの→目立つものの順で重ね、アフター変更が手前に見えるようにする
+  const drawOrder = pairs.slice().sort((a, b) => {
+    const ae = a.emphasis === "emphasis" ? 1 : 0;
+    const be = b.emphasis === "emphasis" ? 1 : 0;
+    return ae - be;
+  });
+  drawOrder.forEach((pair) => {
+    drawEquipmentBody(
+      ctx,
+      pair.equipment,
+      pair.placement,
+      selected.has(pair.placement.id),
+      pair.emphasis
+    );
+  });
+
+  drawGroupOverlays(ctx, doc, selected, pageRole);
+
+  const labels = buildPlanLabels(doc);
+  resolveLabelCollisions(labels);
+  DrawView._labelHitList = labels;
+  const emphasisByPlacement = new Map(
+    pairs.map((pair) => [pair.placement.id, pair.emphasis])
+  );
+  const typeByPlacement = new Map(
+    pairs.map((pair) => [pair.placement.id, pair.equipment.type])
+  );
+  labels.forEach((label) => {
+    drawPlanLabel(
+      ctx,
+      label,
+      selected.has(label.placementId),
+      emphasisByPlacement.get(label.placementId) || "muted",
+      typeByPlacement.get(label.placementId)
+    );
+  });
+  DrawView.printMode = prevPrintMode;
+}
+
+function drawGroupOverlays(ctx, doc, selected, pageRole) {
+  const groups = doc.drawing.groups || [];
+  groups.forEach((group) => {
+    const placements = getGroupPlacements(doc, group);
+    if (placements.length < 2) {
+      return;
+    }
+    const bounds = groupBoundsMm(doc, placements);
+    if (!bounds) {
+      return;
+    }
+    const a = worldToScreen(bounds.minX, bounds.minY);
+    const b = worldToScreen(bounds.maxX, bounds.maxY);
+    const active = placements.some((item) => selected.has(item.id));
+    let accentType = null;
+    if (pageRole === "after") {
+      for (let i = 0; i < placements.length; i += 1) {
+        const eq = findEquipment(doc, placements[i].equipmentId);
+        if (isAfterOwnedItem(eq, placements[i])) {
+          accentType = eq.type;
+          break;
+        }
+      }
+    }
+    const afterOwned = !!accentType;
+    const accent = afterAccentOf(accentType || "other");
+    ctx.save();
+    ctx.globalAlpha = active ? 1 : (afterOwned ? 1 : 0.55);
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = active || afterOwned ? accent.stroke : "rgba(90, 101, 112, 0.45)";
+    ctx.lineWidth = active ? 2.2 : (afterOwned ? 2 : 1.15);
+    ctx.strokeRect(a.x - 3, a.y - 3, b.x - a.x + 6, b.y - a.y + 6);
+    ctx.setLineDash([]);
+    ctx.font = (DrawView.printMode ? "700 16px" : "11px") + " Yu Gothic UI, Meiryo, sans-serif";
+    ctx.fillStyle = active || afterOwned
+      ? (DrawView.printMode ? mixHex(accent.label, "#000000", 0.25) : accent.label)
+      : (DrawView.printMode ? "#1a1e24" : "rgba(42, 46, 52, 0.55)");
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+    ctx.lineWidth = DrawView.printMode ? 4.5 : 3;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "bottom";
+    const label = group.name || DEFAULT_GROUP_NAME;
+    ctx.strokeText(label, a.x, a.y - 4);
+    ctx.fillText(label, a.x, a.y - 4);
+    ctx.restore();
+  });
+}
+
+function drawSiteFrame(ctx, site) {
+  const a = worldToScreen(0, 0);
+  const b = worldToScreen(site.widthMm, site.depthMm);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
+  ctx.strokeStyle = "#8a9099";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y);
+}
+
+function drawGrid(ctx, site, cssW, cssH) {
+  const step = chooseGridStepMm();
+  const minor = step <= 100 ? null : (step >= 5000 ? 1000 : 100);
+  const origin = worldToScreen(0, 0);
+  const end = worldToScreen(site.widthMm, site.depthMm);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(Math.min(origin.x, end.x), Math.min(origin.y, end.y), Math.abs(end.x - origin.x), Math.abs(end.y - origin.y));
+  ctx.clip();
+
+  if (minor && minor * DrawView.scale >= 8) {
+    const maxLines = 500;
+    const countX = Math.ceil(site.widthMm / minor);
+    const countY = Math.ceil(site.depthMm / minor);
+    if (countX + countY <= maxLines * 2) {
+      strokeGrid(
+        ctx,
+        site,
+        minor,
+        DrawView.printMode ? "rgba(180, 184, 190, 0.22)" : "rgba(180, 184, 190, 0.35)",
+        DrawView.printMode ? 0.8 : 1
+      );
+    }
+  }
+  strokeGrid(
+    ctx,
+    site,
+    step,
+    DrawView.printMode ? "rgba(120, 126, 136, 0.35)" : "rgba(120, 126, 136, 0.55)",
+    DrawView.printMode ? 1 : 1
+  );
+
+  ctx.fillStyle = DrawView.printMode ? "#2a2e34" : "#6b717a";
+  ctx.font = (DrawView.printMode ? "700 16px" : "12px") + " Yu Gothic UI, Meiryo, sans-serif";
+  ctx.fillText("0", origin.x + 4, origin.y + (DrawView.printMode ? 18 : 14));
+  ctx.fillText(formatMm(site.widthMm), end.x - (DrawView.printMode ? 100 : 70), origin.y + (DrawView.printMode ? 18 : 14));
+  ctx.fillText(formatMm(site.depthMm), origin.x + 4, end.y - (DrawView.printMode ? 12 : 8));
+
+  ctx.restore();
+
+  DrawView.gridStepMm = step;
+  DrawView.gridMinorMm = minor;
+}
+
+function strokeGrid(ctx, site, step, color, width) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  for (let x = 0; x <= site.widthMm; x += step) {
+    const p0 = worldToScreen(x, 0);
+    const p1 = worldToScreen(x, site.depthMm);
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
+  }
+  for (let y = 0; y <= site.depthMm; y += step) {
+    const p0 = worldToScreen(0, y);
+    const p1 = worldToScreen(site.widthMm, y);
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
+  }
+  ctx.stroke();
+}
+
+function drawEquipmentBody(ctx, equipment, placement, selected, emphasis) {
+  const def = equipmentTypeOf(equipment.type);
+  const tone = emphasis === "emphasis" ? "emphasis" : "muted";
+  if (isPipeType(equipment.type)) {
+    drawPipeBody(ctx, equipment, placement, selected, tone);
+    return;
+  }
+  const fp = footprintOf(equipment, placement);
+  const w = fp.widthMm;
+  const d = fp.depthMm;
+  if (w == null || d == null || w <= 0 || d <= 0) {
+    return;
+  }
+
+  const p = worldToScreen(placement.xMm, placement.yMm);
+  const size = {
+    w: w * DrawView.scale,
+    d: d * DrawView.scale
+  };
+
+  ctx.save();
+  ctx.globalAlpha = emphasisAlpha(tone, selected);
+  const accent = afterAccentOf(equipment.type);
+  const fill = emphasisFill(def.fill, tone, equipment.type);
+  const stroke = emphasisStroke(def.stroke, tone, selected, equipment.type);
+  const lineW = DrawView.printMode
+    ? (selected ? 3.4 : (tone === "emphasis" ? 3 : 2))
+    : (selected ? 2.8 : (tone === "emphasis" ? 2.4 : 1.4));
+  if (equipment.shape === "circle" || equipment.type === "underground_tank") {
+    const cx = p.x + size.w / 2;
+    const cy = p.y + size.d / 2;
+    if (tone === "emphasis" && !selected) {
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, size.w / 2 + 3, size.d / 2 + 3, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = accent.glow;
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, size.w / 2, size.d / 2, 0, 0, Math.PI * 2);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = lineW;
+    ctx.stroke();
+  } else {
+    if (tone === "emphasis" && !selected) {
+      roundRect(ctx, p.x - 2.5, p.y - 2.5, size.w + 5, size.d + 5, 4);
+      ctx.strokeStyle = accent.glow;
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    }
+    roundRect(ctx, p.x, p.y, size.w, size.d, 3);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = lineW;
+    ctx.stroke();
+  }
+
+  if (selected) {
+    ctx.globalAlpha = 1;
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = accent.stroke;
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(p.x - 4, p.y - 4, size.w + 8, size.d + 8);
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+}
+
+function pipeStrokeWidthPx(equipment) {
+  const diameter = equipment.dimensions && equipment.dimensions.diameterMm;
+  // 呼び径（25A など）は実寸のmmではないので、平面図で見分けやすい見かけ太さに変換する
+  const nominal = diameter != null && diameter > 0 ? Number(diameter) : 40;
+  const apparentMm = Math.max(80, nominal * 8);
+  const px = apparentMm * (DrawView.scale || 0.012);
+  return Math.max(2.5, Math.min(40, px));
+}
+
+function drawPipeBody(ctx, equipment, placement, selected, emphasis) {
+  const def = equipmentTypeOf(equipment.type);
+  const tone = emphasis === "emphasis" ? "emphasis" : "muted";
+  const accent = afterAccentOf(equipment.type);
+  const ends = pipeEndpoints(placement);
+  const a = worldToScreen(ends.x1, ends.y1);
+  const b = worldToScreen(ends.x2, ends.y2);
+  const width = pipeStrokeWidthPx(equipment);
+  ctx.save();
+  ctx.globalAlpha = emphasisAlpha(tone, selected);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  if (tone === "emphasis" && !selected) {
+    ctx.strokeStyle = accent.glow;
+    ctx.lineWidth = width + 5;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = selected
+    ? accent.stroke
+    : emphasisStroke(def.stroke, tone, false, equipment.type);
+  ctx.lineWidth = width + (selected ? 2.5 : (tone === "emphasis" ? 1.5 : 0));
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  ctx.strokeStyle = emphasisFill(def.fill, tone, equipment.type);
+  ctx.lineWidth = Math.max(1.5, width * (tone === "emphasis" ? 0.68 : 0.5));
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  if (selected) {
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = accent.stroke;
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, 4, 0, Math.PI * 2);
+    ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawPipeDraft(ctx, startMm, endMm) {
+  if (!startMm || !endMm) {
+    return;
+  }
+  const a = worldToScreen(startMm.xMm, startMm.yMm);
+  const b = worldToScreen(endMm.xMm, endMm.yMm);
+  ctx.save();
+  ctx.setLineDash([6, 4]);
+  ctx.strokeStyle = "#c45c26";
+  ctx.lineWidth = Math.max(2, 40 * DrawView.scale);
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#8a3d16";
+  ctx.beginPath();
+  ctx.arc(a.x, a.y, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function siteClipRect(placement, fp) {
+  const site = typeof SITE_WIDTH_MM !== "undefined"
+    ? { widthMm: SITE_WIDTH_MM, depthMm: SITE_DEPTH_MM }
+    : null;
+  const siteA = worldToScreen(0, 0);
+  const siteB = worldToScreen(
+    site ? site.widthMm : placement.xMm + (fp.widthMm || 0),
+    site ? site.depthMm : placement.yMm + (fp.depthMm || 0)
+  );
+  return {
+    left: Math.min(siteA.x, siteB.x) + 2,
+    top: Math.min(siteA.y, siteB.y) + 2,
+    right: Math.max(siteA.x, siteB.x) - 2,
+    bottom: Math.max(siteA.y, siteB.y) - 2
+  };
+}
+
+function measureLabelSize(text, fontPx, rotated) {
+  const approx = Math.max(12, String(text).length * fontPx * 0.62);
+  const h = fontPx + 4;
+  if (rotated) {
+    return { w: h, h: approx };
+  }
+  return { w: approx, h: h };
+}
+
+function buildPlanLabels(doc) {
+  const labels = [];
+  pairedItems(doc).forEach((pair) => {
+    collectEquipmentLabels(labels, pair.equipment, pair.placement);
+  });
+  return labels;
+}
+
+function collectEquipmentLabels(labels, equipment, placement) {
+  if (isPipeType(equipment.type)) {
+    collectPipeLabels(labels, equipment, placement);
+    return;
+  }
+  const fp = footprintOf(equipment, placement);
+  const w = fp.widthMm;
+  const d = fp.depthMm;
+  if (w == null || d == null || w <= 0 || d <= 0) {
+    return;
+  }
+  const p = worldToScreen(placement.xMm, placement.yMm);
+  const size = { w: w * DrawView.scale, d: d * DrawView.scale };
+  const dims = equipment.dimensions || {};
+  const clip = siteClipRect(placement, fp);
+  const pad = Math.max(10, Math.min(16, Math.min(size.w, size.d) * 0.08));
+  const fontPx = printLabelBoost(size.w < 70 || size.d < 70 ? 11 : 12);
+  const nameRow = size.w >= 24 && size.d >= 18 ? fontPx + 6 : 0;
+  const offsets = placement.labelOffsets || {};
+
+  // 横寸法線＝上辺全体、縦寸法線＝左辺全体（寄せない）
+  const edgeTop = {
+    x0: p.x + 4,
+    y0: p.y + pad + nameRow + fontPx + 2,
+    x1: p.x + size.w - 4,
+    y1: p.y + pad + nameRow + fontPx + 2
+  };
+  const edgeSide = {
+    x0: p.x + pad + fontPx + 2,
+    y0: p.y + 4,
+    x1: p.x + pad + fontPx + 2,
+    y1: p.y + size.d - 4
+  };
+  const edgeInner = {
+    x0: p.x + size.w * 0.25,
+    y0: p.y + size.d - pad,
+    x1: p.x + size.w * 0.75,
+    y1: p.y + size.d - pad
+  };
+
+  if (size.w >= 24 && size.d >= 18) {
+    const def = equipmentTypeOf(equipment.type);
+    const rawName = equipment.name || def.label;
+    const maxChars = Math.max(2, Math.floor((size.w - 8) / (fontPx * 0.6)));
+    const text = rawName.length > maxChars ? rawName.slice(0, maxChars) + "…" : rawName;
+    pushLabel(labels, {
+      placementId: placement.id,
+      key: "name",
+      text: text,
+      fontPx: fontPx,
+      bold: true,
+      rotated: false,
+      baseX: p.x + 4,
+      baseY: p.y + 4,
+      align: "left",
+      baseline: "top",
+      anchorX: p.x + 8,
+      anchorY: p.y + 8,
+      edge: null,
+      offset: offsets.name || null,
+      locked: !!(offsets.name)
+    });
+  }
+
+  let topLabel = "";
+  let sideLabel = "";
+  let innerLabel = "";
+  if (equipment.type === "road") {
+    topLabel = formatMm(dims.lengthMm);
+    sideLabel = formatMm(dims.widthMm);
+  } else if (equipment.type === "underground_tank") {
+    topLabel = formatMm(dims.lengthMm);
+    sideLabel = formatMm(dims.diameterMm);
+    if (dims.burialDepthMm != null) {
+      innerLabel = "深さ " + formatMm(dims.burialDepthMm);
+    }
+  } else if (equipment.type === "bulk_2_9t" || equipment.type === "bulk_1t") {
+    topLabel = "φ " + formatMm(dims.diameterMm);
+    innerLabel = dims.heightMm != null ? "H " + formatMm(dims.heightMm) : "H 未確認";
+  } else {
+    topLabel = formatMm(fp.widthMm);
+    sideLabel = formatMm(fp.depthMm);
+    if (dims.heightMm != null) {
+      innerLabel = "H " + formatMm(dims.heightMm);
+    } else if (equipmentTypeOf(equipment.type).fields.some((f) => f.key === "heightMm")) {
+      innerLabel = "H 未確認";
+    }
+  }
+
+  if (topLabel && size.w >= 36) {
+    pushLabel(labels, {
+      placementId: placement.id,
+      key: "top",
+      text: topLabel,
+      fontPx: fontPx,
+      bold: false,
+      rotated: false,
+      baseX: clamp(p.x + size.w / 2, clip.left + 20, clip.right - 20),
+      baseY: clamp(p.y + pad + nameRow, clip.top + fontPx, clip.bottom - fontPx),
+      align: "center",
+      baseline: "top",
+      anchorX: (edgeTop.x0 + edgeTop.x1) / 2,
+      anchorY: edgeTop.y0,
+      edge: edgeTop,
+      offset: offsets.top || null,
+      locked: !!(offsets.top)
+    });
+  }
+
+  if (sideLabel && size.d >= 36) {
+    pushLabel(labels, {
+      placementId: placement.id,
+      key: "side",
+      text: sideLabel,
+      fontPx: fontPx,
+      bold: false,
+      rotated: true,
+      baseX: clamp(p.x + pad, clip.left + fontPx, clip.right - fontPx),
+      baseY: clamp(p.y + size.d / 2, clip.top + 20, clip.bottom - 20),
+      align: "center",
+      baseline: "top",
+      anchorX: edgeSide.x0,
+      anchorY: (edgeSide.y0 + edgeSide.y1) / 2,
+      edge: edgeSide,
+      offset: offsets.side || null,
+      locked: !!(offsets.side)
+    });
+  }
+
+  if (innerLabel && size.w >= 40 && size.d >= 40) {
+    pushLabel(labels, {
+      placementId: placement.id,
+      key: "inner",
+      text: innerLabel,
+      fontPx: fontPx,
+      bold: false,
+      rotated: false,
+      baseX: clamp(p.x + size.w / 2, clip.left + 20, clip.right - 20),
+      baseY: clamp(p.y + size.d - pad, clip.top + fontPx, clip.bottom - 2),
+      align: "center",
+      baseline: "bottom",
+      anchorX: (edgeInner.x0 + edgeInner.x1) / 2,
+      anchorY: edgeInner.y0,
+      edge: edgeInner,
+      offset: offsets.inner || null,
+      locked: !!(offsets.inner)
+    });
+  }
+}
+
+function pushLabel(labels, spec) {
+  const scale = DrawView.scale || 0.012;
+  const dxPx = spec.offset ? spec.offset.dxMm * scale : 0;
+  const dyPx = spec.offset ? spec.offset.dyMm * scale : 0;
+  const x = spec.baseX + dxPx;
+  const y = spec.baseY + dyPx;
+  const box = measureLabelSize(spec.text, spec.fontPx, spec.rotated);
+  const rect = labelScreenRect(x, y, box.w, box.h, spec.align, spec.baseline, spec.rotated);
+  labels.push(Object.assign({}, spec, {
+    x: x,
+    y: y,
+    autoDxPx: 0,
+    autoDyPx: 0,
+    boxW: box.w,
+    boxH: box.h,
+    left: rect.left,
+    top: rect.top,
+    right: rect.right,
+    bottom: rect.bottom
+  }));
+}
+
+function labelScreenRect(x, y, w, h, align, baseline, rotated) {
+  let left = x;
+  let top = y;
+  if (!rotated) {
+    if (align === "center") {
+      left = x - w / 2;
+    } else if (align === "right") {
+      left = x - w;
+    }
+    if (baseline === "middle") {
+      top = y - h / 2;
+    } else if (baseline === "bottom") {
+      top = y - h;
+    }
+  } else {
+    left = x - w / 2;
+    top = y - h / 2;
+  }
+  return { left: left, top: top, right: left + w, bottom: top + h };
+}
+
+function syncLabelRect(label) {
+  const rect = labelScreenRect(
+    label.x + label.autoDxPx,
+    label.y + label.autoDyPx,
+    label.boxW,
+    label.boxH,
+    label.align,
+    label.baseline,
+    label.rotated
+  );
+  label.left = rect.left;
+  label.top = rect.top;
+  label.right = rect.right;
+  label.bottom = rect.bottom;
+}
+
+function labelsOverlap(a, b, pad) {
+  const p = pad == null ? 2 : pad;
+  return !(a.right + p <= b.left || b.right + p <= a.left || a.bottom + p <= b.top || b.bottom + p <= a.top);
+}
+
+function resolveLabelCollisions(labels) {
+  const dirs = [
+    { dx: 0, dy: -14 },
+    { dx: 14, dy: 0 },
+    { dx: 0, dy: 14 },
+    { dx: -14, dy: 0 },
+    { dx: 12, dy: -12 },
+    { dx: 12, dy: 12 },
+    { dx: -12, dy: 12 },
+    { dx: -12, dy: -12 }
+  ];
+  for (let pass = 0; pass < 8; pass += 1) {
+    let moved = false;
+    for (let i = 0; i < labels.length; i += 1) {
+      const a = labels[i];
+      for (let j = 0; j < i; j += 1) {
+        const b = labels[j];
+        syncLabelRect(a);
+        syncLabelRect(b);
+        if (!labelsOverlap(a, b, 3)) {
+          continue;
+        }
+        const target = a.locked && !b.locked ? b : (!a.locked ? a : (b.locked ? a : b));
+        const other = target === a ? b : a;
+        let best = null;
+        for (let d = 0; d < dirs.length; d += 1) {
+          const trial = {
+            left: target.left + dirs[d].dx,
+            top: target.top + dirs[d].dy,
+            right: target.right + dirs[d].dx,
+            bottom: target.bottom + dirs[d].dy
+          };
+          if (!labelsOverlap(trial, other, 3)) {
+            best = dirs[d];
+            break;
+          }
+        }
+        if (!best) {
+          best = dirs[pass % dirs.length];
+        }
+        target.autoDxPx += best.dx;
+        target.autoDyPx += best.dy;
+        syncLabelRect(target);
+        moved = true;
+      }
+    }
+    if (!moved) {
+      break;
+    }
+  }
+  labels.forEach(syncLabelRect);
+}
+
+function drawPlanLabel(ctx, label, selected, emphasis, equipmentType) {
+  const tone = emphasis === "emphasis" ? "emphasis" : "muted";
+  const typeKey = equipmentType || "other";
+  const accent = afterAccentOf(typeKey);
+  const pastel = beforePastelOf(typeKey);
+  const drawX = label.x + label.autoDxPx;
+  const drawY = label.y + label.autoDyPx;
+  const moved = Math.abs(drawX - label.baseX) > 1.5 || Math.abs(drawY - label.baseY) > 1.5;
+  const print = !!DrawView.printMode;
+
+  ctx.save();
+  // 文字・数字はビフォア／アフターともはっきり見せる（設備本体の薄さとは分ける）
+  ctx.globalAlpha = 1;
+
+  if (label.edge) {
+    drawEdgeTicks(ctx, label.edge.x0, label.edge.y0, label.edge.x1, label.edge.y1);
+  }
+
+  if (moved || label.locked) {
+    drawLeaderLine(ctx, label, drawX, drawY, selected || tone === "emphasis" || print, accent);
+  }
+
+  const fontPx = print
+    ? Math.max(18, (label.fontPx || 12) + 2)
+    : Math.max(11, (label.fontPx || 11) + 1);
+  ctx.font = ((selected || tone === "emphasis" || label.bold || print) ? "700 " : "650 ") +
+    fontPx + "px Yu Gothic UI, Meiryo, sans-serif";
+  // 印刷は黒い文字を優先。画面のビフォアはパステル系の区分色
+  if (print) {
+    ctx.fillStyle = selected || tone === "emphasis" ? mixHex(accent.label, "#000000", 0.35) : "#111418";
+  } else if (selected || tone === "emphasis") {
+    ctx.fillStyle = accent.label;
+  } else {
+    ctx.fillStyle = pastel.label;
+  }
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.98)";
+  ctx.lineWidth = print ? 5.5 : (selected || tone === "emphasis" ? 4 : 3.5);
+  if (label.rotated) {
+    ctx.translate(drawX, drawY);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    strokeFillText(ctx, label.text, 0, 0);
+  } else {
+    ctx.textAlign = label.align;
+    ctx.textBaseline = label.baseline;
+    strokeFillText(ctx, label.text, drawX, drawY);
+  }
+  ctx.restore();
+}
+
+function drawLeaderLine(ctx, label, drawX, drawY, strong, accent) {
+  const toX = label.anchorX;
+  const toY = label.anchorY;
+  let fromX = drawX;
+  let fromY = drawY;
+  if (!label.rotated) {
+    if (label.align === "left") {
+      fromX = drawX + Math.min(10, label.boxW / 2);
+    }
+    if (label.baseline === "top") {
+      fromY = drawY + label.fontPx;
+    } else if (label.baseline === "bottom") {
+      fromY = drawY - 2;
+    }
+  }
+  const stroke = strong && accent
+    ? accent.stroke
+    : "rgba(26, 30, 36, 0.75)";
+  const fill = strong && accent
+    ? accent.stroke
+    : "rgba(26, 30, 36, 0.85)";
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = strong ? 1.5 : 1.2;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(fromX, fromY);
+  ctx.lineTo(toX, toY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.arc(toX, toY, 2.2, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.restore();
+}
+
+function strokeFillText(ctx, text, x, y) {
+  // 白い縁取りを厚めにして、図面の上でも文字が沈まないようにする
+  ctx.strokeText(text, x, y);
+  ctx.strokeText(text, x, y);
+  ctx.fillText(text, x, y);
+}
+
+function drawEdgeTicks(ctx, x0, y0, x1, y1) {
+  ctx.save();
+  ctx.strokeStyle = DrawView.printMode ? "rgba(17, 20, 24, 0.92)" : "rgba(26, 30, 36, 0.78)";
+  ctx.lineWidth = DrawView.printMode ? 2 : 1.25;
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.lineTo(x1, y1);
+  ctx.stroke();
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  const px = (-dy / len) * 4;
+  const py = (dx / len) * 4;
+  ctx.beginPath();
+  ctx.moveTo(x0 - px, y0 - py);
+  ctx.lineTo(x0 + px, y0 + py);
+  ctx.moveTo(x1 - px, y1 - py);
+  ctx.lineTo(x1 + px, y1 + py);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function hitTestLabel(xPx, yPx) {
+  const list = DrawView._labelHitList || [];
+  for (let i = list.length - 1; i >= 0; i -= 1) {
+    const label = list[i];
+    if (xPx >= label.left - 2 && xPx <= label.right + 2 && yPx >= label.top - 2 && yPx <= label.bottom + 2) {
+      return label;
+    }
+  }
+  return null;
+}
+
+function distancePointToSegmentMm(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len2 = dx * dx + dy * dy;
+  if (len2 <= 0) {
+    return Math.hypot(px - x1, py - y1);
+  }
+  let t = ((px - x1) * dx + (py - y1) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const qx = x1 + dx * t;
+  const qy = y1 + dy * t;
+  return Math.hypot(px - qx, py - qy);
+}
+
+function collectPipeLabels(labels, equipment, placement) {
+  const ends = pipeEndpoints(placement);
+  const length = pipeLengthMm(placement);
+  if (length < MOVE_STEP_MM) {
+    return;
+  }
+  const a = worldToScreen(ends.x1, ends.y1);
+  const b = worldToScreen(ends.x2, ends.y2);
+  const mx = (a.x + b.x) / 2;
+  const my = (a.y + b.y) / 2;
+  const fontPx = printLabelBoost(12);
+  const offsets = placement.labelOffsets || {};
+  const dims = equipment.dimensions || {};
+  const def = equipmentTypeOf(equipment.type);
+  pushLabel(labels, {
+    placementId: placement.id,
+    key: "name",
+    text: equipment.name || def.label,
+    fontPx: fontPx,
+    bold: true,
+    rotated: false,
+    baseX: mx,
+    baseY: my - 14,
+    align: "center",
+    baseline: "bottom",
+    anchorX: mx,
+    anchorY: my,
+    edge: null,
+    offset: offsets.name || null,
+    locked: !!(offsets.name)
+  });
+  pushLabel(labels, {
+    placementId: placement.id,
+    key: "top",
+    text: "L " + formatMm(length),
+    fontPx: fontPx,
+    bold: false,
+    rotated: false,
+    baseX: mx,
+    baseY: my + 4,
+    align: "center",
+    baseline: "top",
+    anchorX: mx,
+    anchorY: my,
+    edge: { x0: a.x, y0: a.y, x1: b.x, y1: b.y },
+    offset: offsets.top || null,
+    locked: !!(offsets.top)
+  });
+  if (dims.diameterMm != null) {
+    pushLabel(labels, {
+      placementId: placement.id,
+      key: "inner",
+      text: String(dims.diameterMm) + "A",
+      fontPx: fontPx,
+      bold: false,
+      rotated: false,
+      baseX: mx,
+      baseY: my + 18,
+      align: "center",
+      baseline: "top",
+      anchorX: mx,
+      anchorY: my,
+      edge: null,
+      offset: offsets.inner || null,
+      locked: !!(offsets.inner)
+    });
+  }
+}
+
+function hitTest(doc, xPx, yPx) {
+  const world = screenToWorld(xPx, yPx);
+  const pairs = pairedItems(doc).slice().reverse();
+  for (let i = 0; i < pairs.length; i += 1) {
+    const { equipment, placement } = pairs[i];
+    if (isPipeType(equipment.type)) {
+      const ends = pipeEndpoints(placement);
+      const diameter = equipment.dimensions && equipment.dimensions.diameterMm;
+      const nominal = diameter != null && diameter > 0 ? Number(diameter) : 40;
+      const hitMm = Math.max(120, nominal * 4 + 80);
+      if (distancePointToSegmentMm(world.xMm, world.yMm, ends.x1, ends.y1, ends.x2, ends.y2) <= hitMm) {
+        return placement;
+      }
+      continue;
+    }
+    const fp = footprintOf(equipment, placement);
+    if (fp.widthMm == null || fp.depthMm == null) {
+      continue;
+    }
+    if (equipment.shape === "circle" || equipment.type === "underground_tank") {
+      const cx = placement.xMm + fp.widthMm / 2;
+      const cy = placement.yMm + fp.depthMm / 2;
+      const nx = (world.xMm - cx) / (fp.widthMm / 2);
+      const ny = (world.yMm - cy) / (fp.depthMm / 2);
+      if (nx * nx + ny * ny <= 1) {
+        return placement;
+      }
+    } else if (
+      world.xMm >= placement.xMm &&
+      world.xMm <= placement.xMm + fp.widthMm &&
+      world.yMm >= placement.yMm &&
+      world.yMm <= placement.yMm + fp.depthMm
+    ) {
+      return placement;
+    }
+  }
+  return null;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+}
+
+</script>
+  <script>
+/* A4 landscape PDF with the existing high-resolution print canvas.
+ * No external libraries or network access required. */
+function createPlanPdf(canvas) {
+  const encoded = canvas.toDataURL("image/jpeg", 0.98).split(",")[1];
+  const raw = atob(encoded);
+  const jpeg = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+  const encoder = new TextEncoder();
+  const parts = [];
+  const offsets = [0];
+  let length = 0;
+  function append(value) {
+    const bytes = typeof value === "string" ? encoder.encode(value) : value;
+    parts.push(bytes);
+    length += bytes.length;
+  }
+  function object(number, content) {
+    offsets[number] = length;
+    append(number + " 0 obj\n" + content + "\nendobj\n");
+  }
+  append("%PDF-1.4\n");
+  object(1, "<< /Type /Catalog /Pages 2 0 R >>");
+  object(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+  object(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 841.89 595.28] /Resources << /XObject << /Plan 4 0 R >> >> /Contents 5 0 R >>");
+  offsets[4] = length;
+  append("4 0 obj\n<< /Type /XObject /Subtype /Image /Width " + canvas.width +
+    " /Height " + canvas.height + " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " + jpeg.length + " >>\nstream\n");
+  append(jpeg);
+  append("\nendstream\nendobj\n");
+  const commands = "q\n841.89 0 0 595.28 0 0 cm\n/Plan Do\nQ\n";
+  object(5, "<< /Length " + encoder.encode(commands).length + " >>\nstream\n" + commands + "endstream");
+  const xref = length;
+  append("xref\n0 6\n0000000000 65535 f \n");
+  for (let i = 1; i <= 5; i++) append(String(offsets[i]).padStart(10, "0") + " 00000 n \n");
+  append("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n" + xref + "\n%%EOF\n");
+  return new Blob(parts, { type: "application/pdf" });
+}
+
+</script>
+  <script>
+(() => {
+  const canvas = document.getElementById("canvas");
+  const canvasBefore = document.getElementById("canvasBefore");
+  const canvasAfter = document.getElementById("canvasAfter");
+  const compareStage = document.getElementById("compareStage");
+  const stageWrap = document.querySelector(".stage-wrap");
+  const appRoot = document.querySelector(".app");
+  const paletteEl = document.getElementById("palette");
+  const statusBar = document.getElementById("statusBar");
+  const messageEl = document.getElementById("message");
+  const inspector = document.getElementById("inspector");
+  const selectionLabel = document.getElementById("selectionLabel");
+  const editor = document.getElementById("editor");
+  const dimFields = document.getElementById("dimFields");
+  const nameInput = document.getElementById("nameInput");
+  const dimDialog = document.getElementById("dimDialog");
+  const dimForm = document.getElementById("dimForm");
+  const dialogFields = document.getElementById("dialogFields");
+  const dialogName = document.getElementById("dialogName");
+  const dialogTitle = document.getElementById("dimDialogTitle");
+  const otherShapeFields = document.getElementById("otherShapeFields");
+  const dialogShape = document.getElementById("dialogShape");
+  const VIEW_PAN_PX = 80;
+  const sheetDateText = document.getElementById("sheetDateText");
+  const sheetDateInput = document.getElementById("sheetDateInput");
+  const sheetTitleInput = document.getElementById("sheetTitleInput");
+  const sheetNameInput = document.getElementById("sheetNameInput");
+  const openFileInput = document.getElementById("openFile");
+
+  const HISTORY_LIMIT = 50;
+  const loaded = loadDocument();
+  let project = loaded.doc;
+  if (!project.meta) {
+    project.meta = emptyMeta();
+  }
+  let doc = null;
+  let selectedPlacementIds = new Set();
+  let activeTool = "select"; // select | move
+  let pendingType = null;
+  let placing = false;
+  let pipeStart = null;
+  let pipeHover = null;
+  let drag = null;
+  let labelDrag = null;
+  let pan = null;
+  let lastLabelClick = null;
+  let historyPast = [];
+  let historyFuture = [];
+  let clipboard = null;
+  let clipboardPasteCount = 0;
+  const editView = {
+    scale: DrawView.scale,
+    offsetX: DrawView.offsetX,
+    offsetY: DrawView.offsetY
+  };
+  const compareView = {
+    scale: DrawView.scale,
+    offsetX: 40,
+    offsetY: 40,
+    needFit: true,
+    pan: null
+  };
+
+  bindActivePage(false);
+  buildPalette();
+  bindChrome();
+  bindSheetInfo();
+  bindCanvas();
+  applySheetInfoToForm();
+  fitSiteToCanvas(canvas, project.site);
+  snapshotEditView();
+  canvas.style.cursor = "grab";
+  if (loaded.warning) {
+    setMessage(loaded.warning);
+  } else {
+    setMessage("空き場所をドラッグで図面を移動できます。");
+  }
+  refresh();
+  updateHistoryButtons();
+  updatePageChrome();
+
+  function bindActivePage(clearHistory) {
+    if (project.activePage === PAGE_COMPARE) {
+      doc = workDocFromProject(project, PAGE_BEFORE);
+    } else if (project.activePage === PAGE_AFTER && hasAfterPage(project)) {
+      doc = workDocFromProject(project, PAGE_AFTER);
+    } else {
+      project.activePage = PAGE_BEFORE;
+      doc = workDocFromProject(project, PAGE_BEFORE);
+    }
+    selectedPlacementIds = new Set();
+    pendingType = null;
+    placing = false;
+    pipeStart = null;
+    pipeHover = null;
+    drag = null;
+    pan = null;
+    labelDrag = null;
+    lastLabelClick = null;
+    placePendingAt._lastValues = null;
+    clearPalettePressed();
+    if (clearHistory) {
+      historyPast = [];
+      historyFuture = [];
+      updateHistoryButtons();
+    }
+  }
+
+  function snapshotEditView() {
+    editView.scale = DrawView.scale;
+    editView.offsetX = DrawView.offsetX;
+    editView.offsetY = DrawView.offsetY;
+  }
+
+  function restoreEditView() {
+    DrawView.scale = editView.scale;
+    DrawView.offsetX = editView.offsetX;
+    DrawView.offsetY = editView.offsetY;
+  }
+
+  function isCompareMode() {
+    return project.activePage === PAGE_COMPARE;
+  }
+
+  function isEditablePage() {
+    return project.activePage === PAGE_BEFORE || project.activePage === PAGE_AFTER;
+  }
+
+  function isEditingBeforePage() {
+    return project.activePage === PAGE_BEFORE
+      && doc
+      && project.pages.before
+      && doc.drawing === project.pages.before.drawing;
+  }
+
+  function buildPalette() {
+    paletteEl.innerHTML = "";
+    EQUIPMENT_TYPES.forEach((item) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "palette-btn";
+      button.dataset.type = item.type;
+      button.setAttribute("aria-pressed", "false");
+      button.innerHTML = iconSvg(item.icon) + `<span class="label">${item.label}</span>`;
+      button.addEventListener("click", () => openDimensionDialog(item.type));
+      paletteEl.appendChild(button);
+    });
+  }
+
+  function bindChrome() {
+    document.getElementById("pageBefore").addEventListener("click", () => switchPage(PAGE_BEFORE));
+    document.getElementById("pageAfter").addEventListener("click", () => {
+      if (!hasAfterPage(project)) {
+        createAfterPage();
+        return;
+      }
+      switchPage(PAGE_AFTER);
+    });
+    document.getElementById("pageCompare").addEventListener("click", () => {
+      if (!hasAfterPage(project)) {
+        setMessage("先にアフターをコピー作成してください。");
+        return;
+      }
+      switchPage(PAGE_COMPARE);
+    });
+    document.getElementById("copyAfterButton").addEventListener("click", () => createAfterPage());
+    document.getElementById("openButton").addEventListener("click", () => openFileInput.click());
+    document.getElementById("saveButton").addEventListener("click", () => downloadDrawingFile());
+    document.getElementById("pdfButton").addEventListener("click", downloadDrawingPdf);
+    document.getElementById("printButton").addEventListener("click", () => printDrawing());
+    openFileInput.addEventListener("change", () => {
+      const file = openFileInput.files && openFileInput.files[0];
+      openFileInput.value = "";
+      if (file) {
+        openDrawingFile(file);
+      }
+    });
+
+    document.getElementById("toolSelect").addEventListener("click", () => setTool("select"));
+    document.getElementById("toolMove").addEventListener("click", () => setTool("move"));
+    document.getElementById("fitButton").addEventListener("click", () => {
+      if (isCompareMode()) {
+        compareView.needFit = true;
+        refresh();
+        setMessage("比較画面を全体表示に合わせました（左右同じ拡大）。");
+        return;
+      }
+      fitSiteToCanvas(canvas, project.site);
+      snapshotEditView();
+      refresh();
+    });
+    document.getElementById("zoomInButton").addEventListener("click", () => {
+      if (isCompareMode()) {
+        zoomCompareAt(1.25, canvasBefore.clientWidth / 2, canvasBefore.clientHeight / 2);
+        refresh();
+        return;
+      }
+      zoomAt(canvas, 1.25, canvas.clientWidth / 2, canvas.clientHeight / 2);
+      snapshotEditView();
+      refresh();
+    });
+    document.getElementById("zoomOutButton").addEventListener("click", () => {
+      if (isCompareMode()) {
+        zoomCompareAt(0.8, canvasBefore.clientWidth / 2, canvasBefore.clientHeight / 2);
+        refresh();
+        return;
+      }
+      zoomAt(canvas, 0.8, canvas.clientWidth / 2, canvas.clientHeight / 2);
+      snapshotEditView();
+      refresh();
+    });
+    document.getElementById("undoButton").addEventListener("click", undoChange);
+    document.getElementById("redoButton").addEventListener("click", redoChange);
+    document.getElementById("deleteButton").addEventListener("click", deleteSelected);
+    document.getElementById("groupButton").addEventListener("click", groupSelected);
+    document.getElementById("ungroupButton").addEventListener("click", ungroupSelected);
+    document.getElementById("copyButton").addEventListener("click", copySelected);
+    document.getElementById("pasteButton").addEventListener("click", pasteClipboard);
+    document.getElementById("frontButton").addEventListener("click", () => bringSelection("front"));
+    document.getElementById("backButton").addEventListener("click", () => bringSelection("back"));
+    document.getElementById("applyDimsButton").addEventListener("click", applyEditorDims);
+    document.getElementById("resetLabelsButton").addEventListener("click", resetSelectedLabels);
+    document.getElementById("moveUp").addEventListener("click", () => nudge(0, -MOVE_STEP_MM));
+    document.getElementById("moveDown").addEventListener("click", () => nudge(0, MOVE_STEP_MM));
+    document.getElementById("moveLeft").addEventListener("click", () => nudge(-MOVE_STEP_MM, 0));
+    document.getElementById("moveRight").addEventListener("click", () => nudge(MOVE_STEP_MM, 0));
+    document.getElementById("panUp").addEventListener("click", () => panView(0, VIEW_PAN_PX));
+    document.getElementById("panDown").addEventListener("click", () => panView(0, -VIEW_PAN_PX));
+    document.getElementById("panLeft").addEventListener("click", () => panView(VIEW_PAN_PX, 0));
+    document.getElementById("panRight").addEventListener("click", () => panView(-VIEW_PAN_PX, 0));
+
+    document.getElementById("dimCancelButton").addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeDimensionDialogCanceled();
+    });
+
+    // Esc やダイアログ閉じでも、未入力チェックは出さずそのまま閉じる
+    dimDialog.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      closeDimensionDialogCanceled();
+    });
+    dimDialog.addEventListener("close", () => {
+      if (dimDialog.returnValue === "ok") {
+        return;
+      }
+      // close 後の後始末（状態だけ戻す。メッセージは出さない）
+      pendingType = null;
+      placing = false;
+      placePendingAt._lastValues = null;
+      clearPalettePressed();
+    });
+
+    // Enter / 配置 で確定（未入力チェックはここだけ）
+    dimForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      confirmDimensionDialog();
+    });
+
+    // 右下の寸法パネルでも Enter で反映
+    inspector.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") {
+        return;
+      }
+      if (!event.target || !["INPUT", "SELECT"].includes(event.target.tagName)) {
+        return;
+      }
+      event.preventDefault();
+      applyEditorDims();
+    });
+
+    window.addEventListener("resize", () => {
+      if (isCompareMode()) {
+        compareView.needFit = true;
+      }
+      refresh();
+    });
+    window.addEventListener("keydown", (event) => {
+      if (dimDialog.open) {
+        return;
+      }
+      if (isCompareMode()) {
+        return;
+      }
+      const typing = document.activeElement &&
+        ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName);
+      if (event.key === "Escape" && !typing) {
+        if (cancelPipeDraft()) {
+          event.preventDefault();
+          return;
+        }
+      }
+      const mod = event.ctrlKey || event.metaKey;
+      if (mod && (event.key === "z" || event.key === "Z")) {
+        if (typing) {
+          return;
+        }
+        event.preventDefault();
+        if (event.shiftKey) {
+          redoChange();
+        } else {
+          undoChange();
+        }
+        return;
+      }
+      if (mod && (event.key === "y" || event.key === "Y")) {
+        if (typing) {
+          return;
+        }
+        event.preventDefault();
+        redoChange();
+        return;
+      }
+      if (mod && (event.key === "c" || event.key === "C")) {
+        if (typing) {
+          return;
+        }
+        if (!selectedPlacementIds.size) {
+          return;
+        }
+        event.preventDefault();
+        copySelected();
+        return;
+      }
+      if (mod && (event.key === "v" || event.key === "V")) {
+        if (typing) {
+          return;
+        }
+        event.preventDefault();
+        pasteClipboard();
+        return;
+      }
+      if (!selectedPlacementIds.size) {
+        return;
+      }
+      if (event.key === "Delete" || event.key === "Backspace") {
+        if (typing) {
+          return;
+        }
+        event.preventDefault();
+        deleteSelected();
+      } else if (typing) {
+        return;
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        nudge(0, -MOVE_STEP_MM);
+      } else if (event.key === "ArrowDown") {
+        event.preventDefault();
+        nudge(0, MOVE_STEP_MM);
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        nudge(-MOVE_STEP_MM, 0);
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        nudge(MOVE_STEP_MM, 0);
+      }
+    });
+  }
+
+  function cloneProject(source) {
+    return JSON.parse(JSON.stringify(source));
+  }
+
+  function pushHistory() {
+    historyPast.push(cloneProject(project));
+    if (historyPast.length > HISTORY_LIMIT) {
+      historyPast.shift();
+    }
+    historyFuture = [];
+    updateHistoryButtons();
+  }
+
+  function pruneSelection() {
+    if (!doc) {
+      selectedPlacementIds = new Set();
+      return;
+    }
+    const valid = new Set((doc.drawing.placements || []).map((item) => item.id));
+    selectedPlacementIds = new Set(Array.from(selectedPlacementIds).filter((id) => valid.has(id)));
+  }
+
+  function updateHistoryButtons() {
+    const undoBtn = document.getElementById("undoButton");
+    const redoBtn = document.getElementById("redoButton");
+    const canEdit = isEditablePage();
+    if (undoBtn) {
+      undoBtn.disabled = !canEdit || historyPast.length === 0;
+    }
+    if (redoBtn) {
+      redoBtn.disabled = !canEdit || historyFuture.length === 0;
+    }
+  }
+
+  function undoChange() {
+    if (!isEditablePage() || !historyPast.length) {
+      return;
+    }
+    historyFuture.push(cloneProject(project));
+    project = historyPast.pop();
+    if (!project.meta) {
+      project.meta = emptyMeta();
+    }
+    bindActivePage(false);
+    pruneSelection();
+    applySheetInfoToForm();
+    persist();
+    refresh();
+    updateHistoryButtons();
+    updatePageChrome();
+    setMessage("戻しました。");
+  }
+
+  function redoChange() {
+    if (!isEditablePage() || !historyFuture.length) {
+      return;
+    }
+    historyPast.push(cloneProject(project));
+    if (historyPast.length > HISTORY_LIMIT) {
+      historyPast.shift();
+    }
+    project = historyFuture.pop();
+    if (!project.meta) {
+      project.meta = emptyMeta();
+    }
+    bindActivePage(false);
+    pruneSelection();
+    applySheetInfoToForm();
+    persist();
+    refresh();
+    updateHistoryButtons();
+    updatePageChrome();
+    setMessage("やり直しました。");
+  }
+
+  function switchPage(page) {
+    if (page === PAGE_AFTER && !hasAfterPage(project)) {
+      createAfterPage();
+      return;
+    }
+    if (page === PAGE_COMPARE && !hasAfterPage(project)) {
+      setMessage("先にアフターをコピー作成してください。");
+      return;
+    }
+    if (project.activePage === page) {
+      return;
+    }
+    if (isEditablePage()) {
+      snapshotEditView();
+    }
+    let mirror = { added: 0, mirrored: 0, removed: 0 };
+    if ((page === PAGE_AFTER || page === PAGE_COMPARE) && hasAfterPage(project)) {
+      mirror = mirrorBeforeToAfter(project);
+    }
+    project.activePage = page;
+    // ページ切替では履歴を消さない（誤って作り直したあと「戻る」で復元できるようにする）
+    bindActivePage(false);
+    if (isEditablePage()) {
+      restoreEditView();
+    }
+    persist();
+    refresh();
+    updatePageChrome();
+    if (page === PAGE_COMPARE) {
+      compareView.needFit = true;
+    }
+    if (page === PAGE_BEFORE) {
+      setMessage("ビフォア（現状）を表示しています。");
+    } else if (page === PAGE_AFTER) {
+      setMessage(describeMirrorResult(mirror, "アフターを表示しています。削除・移動・追加はアフター側の操作として残ります。"));
+    } else {
+      setMessage(describeMirrorResult(mirror, "左右比較：同じ拡大で全体表示しています。拡大・全体・矢印は左右共通です。"));
+    }
+  }
+
+  function describeMirrorResult(mirror, fallback) {
+    const parts = [];
+    if (mirror && mirror.added > 0) {
+      parts.push("追加" + mirror.added + "件");
+    }
+    if (mirror && mirror.mirrored > 0) {
+      parts.push("映し出し" + mirror.mirrored + "件");
+    }
+    if (mirror && mirror.removed > 0) {
+      parts.push("削除反映" + mirror.removed + "件");
+    }
+    if (!parts.length) {
+      return fallback;
+    }
+    return "ビフォアをアフターへ反映しました（" + parts.join("・") + "）。";
+  }
+
+  function createAfterPage() {
+    if (hasAfterPage(project)) {
+      switchPage(PAGE_AFTER);
+      setMessage("アフターは既にあります。ビフォアで増やした設備は自動で追記されます。");
+      return;
+    }
+    pushHistory();
+    createAfterFromBefore(project);
+    project.activePage = PAGE_AFTER;
+    bindActivePage(false);
+    historyFuture = [];
+    updateHistoryButtons();
+    restoreEditView();
+    persist();
+    refresh();
+    updatePageChrome();
+    setMessage("アフターを作成しました。ここから削除・追加できます。ビフォアへ追加した設備は自動で追記されます。");
+  }
+
+  function updatePageChrome() {
+    const hasAfter = hasAfterPage(project);
+    const compare = isCompareMode();
+    document.getElementById("pageBefore").setAttribute("aria-pressed", project.activePage === PAGE_BEFORE ? "true" : "false");
+    document.getElementById("pageAfter").setAttribute("aria-pressed", project.activePage === PAGE_AFTER ? "true" : "false");
+    document.getElementById("pageCompare").setAttribute("aria-pressed", compare ? "true" : "false");
+    document.getElementById("pageCompare").disabled = !hasAfter;
+    document.getElementById("copyAfterButton").hidden = hasAfter;
+    document.getElementById("copyAfterButton").textContent = "Copy";
+    compareStage.hidden = !compare;
+    stageWrap.classList.toggle("is-compare", compare);
+    appRoot.classList.toggle("is-compare", compare);
+    canvas.style.visibility = compare ? "hidden" : "visible";
+  }
+
+  function primarySelectedId() {
+    const first = selectedPlacementIds.values().next();
+    return first.done ? null : first.value;
+  }
+
+  function selectedPlacements() {
+    return Array.from(selectedPlacementIds)
+      .map((id) => findPlacement(doc, id))
+      .filter(Boolean);
+  }
+
+  function setSelection(ids) {
+    selectedPlacementIds = new Set(ids.filter(Boolean));
+  }
+
+  function selectRelated(placementId, additive) {
+    const group = findGroupByPlacement(doc, placementId);
+    if (additive) {
+      if (selectedPlacementIds.has(placementId)) {
+        selectedPlacementIds.delete(placementId);
+      } else {
+        selectedPlacementIds.add(placementId);
+      }
+      return;
+    }
+    if (group) {
+      setSelection(group.placementIds.slice());
+    } else {
+      setSelection([placementId]);
+    }
+  }
+
+  function closeDimensionDialogCanceled() {
+    pendingType = null;
+    placing = false;
+    pipeStart = null;
+    pipeHover = null;
+    placePendingAt._lastValues = null;
+    clearPalettePressed();
+    setMessage("");
+    canvas.style.cursor = "grab";
+    if (dimDialog.open) {
+      dimDialog.close("cancel");
+    }
+  }
+
+  function confirmDimensionDialog() {
+    if (!pendingType) {
+      return false;
+    }
+    const values = readDialogValues();
+    const missing = requiredDimsPresent(pendingType, values);
+    if (!values.name) {
+      setMessage("名称を入力してください。");
+      return false;
+    }
+    if (missing.length) {
+      setMessage("必須寸法が未入力です: " + missing.join("、"));
+      return false;
+    }
+    placePendingAt._lastValues = values;
+    dimDialog.returnValue = "ok";
+    dimDialog.close("ok");
+    placing = true;
+    pipeStart = null;
+    pipeHover = null;
+    if (isLinePlaceType(pendingType)) {
+      setMessage("始点をクリックしてください。やめるときは Esc。");
+    } else {
+      setMessage("作図エリアをクリックして配置位置を決めてください。");
+    }
+    canvas.style.cursor = "crosshair";
+    return true;
+  }
+
+  function bindCanvas() {
+    canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointermove", onPointerMove);
+    canvas.addEventListener("pointerup", onPointerUp);
+    canvas.addEventListener("pointercancel", onPointerUp);
+    canvas.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      if (isCompareMode()) {
+        return;
+      }
+      const factor = event.deltaY < 0 ? 1.12 : 0.9;
+      const rect = canvas.getBoundingClientRect();
+      zoomAt(canvas, factor, event.clientX - rect.left, event.clientY - rect.top);
+      snapshotEditView();
+      refresh();
+    }, { passive: false });
+
+    [canvasBefore, canvasAfter].forEach((target) => {
+      target.addEventListener("wheel", (event) => {
+        if (!isCompareMode()) {
+          return;
+        }
+        event.preventDefault();
+        const factor = event.deltaY < 0 ? 1.12 : 0.9;
+        const rect = target.getBoundingClientRect();
+        zoomCompareAt(factor, event.clientX - rect.left, event.clientY - rect.top);
+        refresh();
+      }, { passive: false });
+      target.addEventListener("pointerdown", (event) => {
+        if (!isCompareMode() || event.button !== 0) {
+          return;
+        }
+        target.setPointerCapture(event.pointerId);
+        const rect = target.getBoundingClientRect();
+        compareView.pan = {
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top,
+          ox: compareView.offsetX,
+          oy: compareView.offsetY
+        };
+        target.style.cursor = "grabbing";
+      });
+      target.addEventListener("pointermove", (event) => {
+        if (!compareView.pan) {
+          return;
+        }
+        const rect = target.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        compareView.offsetX = compareView.pan.ox + (x - compareView.pan.x);
+        compareView.offsetY = compareView.pan.oy + (y - compareView.pan.y);
+        refresh();
+      });
+      target.addEventListener("pointerup", () => {
+        compareView.pan = null;
+        target.style.cursor = "grab";
+      });
+      target.addEventListener("pointercancel", () => {
+        compareView.pan = null;
+        target.style.cursor = "grab";
+      });
+    });
+  }
+
+  function openDimensionDialog(type) {
+    if (!isEditablePage()) {
+      setMessage("比較表示中は編集できません。ビフォアまたはアフターを選んでください。");
+      return;
+    }
+    pendingType = type;
+    placing = false;
+    clearPalettePressed();
+    const btn = paletteEl.querySelector(`[data-type="${type}"]`);
+    if (btn) {
+      btn.setAttribute("aria-pressed", "true");
+    }
+    const def = equipmentTypeOf(type);
+    dialogTitle.textContent = def.label + "の寸法入力";
+    dialogName.value = def.label;
+    dialogFields.innerHTML = "";
+    def.fields.forEach((field) => {
+      dialogFields.appendChild(buildField(field, ""));
+    });
+    const note = dimDialog.querySelector(".dialog-note");
+    if (note) {
+      note.textContent = isLinePlaceType(type)
+        ? "太さは数字のみ（例: 25）。Aは欄外に表示。空欄＝未確認。長さは始点〜終点から自動です。"
+        : "空欄＝未確認（推測しません）";
+    }
+    otherShapeFields.hidden = !def.allowsCustomShape;
+    if (def.allowsCustomShape) {
+      dialogShape.value = "rect";
+    }
+    if (typeof dimDialog.showModal === "function") {
+      dimDialog.showModal();
+      const firstSize = dialogFields.querySelector("input");
+      if (firstSize) {
+        firstSize.focus();
+        firstSize.select();
+      }
+    } else {
+      setMessage("このブラウザはダイアログに対応していません。");
+    }
+  }
+
+  function readDialogValues() {
+    const values = { name: dialogName.value.trim() };
+    const def = equipmentTypeOf(pendingType);
+    def.fields.forEach((field) => {
+      const input = document.getElementById("dlg_" + field.key);
+      values[field.key] = input ? input.value : "";
+    });
+    if (def.allowsCustomShape) {
+      values.shape = dialogShape.value;
+    }
+    return values;
+  }
+
+  function buildField(field, value) {
+    const label = document.createElement("label");
+    label.appendChild(document.createTextNode(shortDimLabel(field)));
+    if (field.key === "heightMm") {
+      label.classList.add("field-height");
+    }
+    const input = document.createElement("input");
+    input.id = "dlg_" + field.key;
+    input.type = "text";
+    input.inputMode = "numeric";
+    input.autocomplete = "off";
+    input.title = field.unitSuffix
+      ? (field.label + "（数字のみ。" + field.unitSuffix + "は欄外）" + (field.required ? "" : "／未確認可"))
+      : (field.label + (field.required ? "" : "（任意・未確認可）"));
+    input.placeholder = field.unitSuffix
+      ? "例: 25"
+      : (field.key === "heightMm"
+        ? "未確認可"
+        : (field.required ? "mm" : "未確認"));
+    input.value = value == null || value === "" ? "" : String(value);
+    // required は付けない（やめる時にブラウザの未入力警告が出ないようにする）
+    if (field.unitSuffix) {
+      const row = document.createElement("span");
+      row.className = "unit-input-row";
+      row.appendChild(input);
+      const suffix = document.createElement("span");
+      suffix.className = "unit-suffix";
+      suffix.textContent = field.unitSuffix;
+      row.appendChild(suffix);
+      label.appendChild(row);
+    } else {
+      label.appendChild(input);
+    }
+    return label;
+  }
+
+  function shortDimLabel(field) {
+    if (field && field.unitSuffix === "A") {
+      return "太さ";
+    }
+    const map = {
+      widthMm: "幅",
+      depthMm: "奥行",
+      heightMm: "高さ",
+      lengthMm: "長さ",
+      diameterMm: "直径",
+      burialDepthMm: "深さ"
+    };
+    return map[field.key] || String(field.label || "").replace("（mm）", "");
+  }
+
+  function placePendingAt(xMm, yMm) {
+    const type = pendingType;
+    const cached = placePendingAt._lastValues;
+    if (!type || !cached) {
+      return;
+    }
+    pushHistory();
+    const equipment = createEquipment(type, cached);
+    const placement = createPlacement(equipment.id, xMm, yMm);
+    clampPlacementToSite(placement, equipment, doc.site);
+    doc.equipment.push(equipment);
+    doc.drawing.placements.push(placement);
+    setSelection([placement.id]);
+    pendingType = null;
+    placing = false;
+    pipeStart = null;
+    pipeHover = null;
+    placePendingAt._lastValues = null;
+    clearPalettePressed();
+    canvas.style.cursor = "grab";
+    let mirror = null;
+    if (isEditingBeforePage() && hasAfterPage(project)) {
+      mirror = mirrorBeforeToAfter(project);
+    }
+    persist();
+    refresh();
+    setMessage(mirror && mirror.added > 0
+      ? equipment.name + " を配置し、アフターにも映し出しました。"
+      : equipment.name + " を配置しました。");
+  }
+
+  function handlePipePlaceClick(xMm, yMm) {
+    const type = pendingType;
+    const cached = placePendingAt._lastValues;
+    if (!type || !cached || !isLinePlaceType(type)) {
+      return;
+    }
+    const point = { xMm: snapMm(xMm), yMm: snapMm(yMm) };
+    if (!pipeStart) {
+      pipeStart = point;
+      pipeHover = point;
+      setMessage("終点をクリックしてください。やめるときは Esc。");
+      refresh();
+      return;
+    }
+    const length = Math.round(Math.hypot(point.xMm - pipeStart.xMm, point.yMm - pipeStart.yMm));
+    if (length < MOVE_STEP_MM) {
+      setMessage("始点と終点が近すぎます。もう一度終点をクリックしてください。");
+      return;
+    }
+    pushHistory();
+    const equipment = createEquipment(type, cached);
+    const placement = createPipePlacement(equipment.id, pipeStart.xMm, pipeStart.yMm, point.xMm, point.yMm);
+    clampPlacementToSite(placement, equipment, doc.site);
+    syncPipeDimensions(equipment, placement);
+    doc.equipment.push(equipment);
+    doc.drawing.placements.push(placement);
+    setSelection([placement.id]);
+    pendingType = null;
+    placing = false;
+    pipeStart = null;
+    pipeHover = null;
+    placePendingAt._lastValues = null;
+    clearPalettePressed();
+    canvas.style.cursor = "grab";
+    let mirror = null;
+    if (isEditingBeforePage() && hasAfterPage(project)) {
+      mirror = mirrorBeforeToAfter(project);
+    }
+    persist();
+    refresh();
+    const dia = equipment.dimensions.diameterMm;
+    const sizeText = "長さ " + formatMm(equipment.dimensions.lengthMm) +
+      "／太さ " + (dia != null ? dia + "A" : "未確認");
+    setMessage(mirror && mirror.added > 0
+      ? equipment.name + " を配置し、アフターにも映し出しました（" + sizeText + "）。"
+      : equipment.name + " を配置しました（" + sizeText + "）。");
+  }
+
+  function cancelPipeDraft() {
+    if (!placing && !pipeStart) {
+      return false;
+    }
+    pendingType = null;
+    placing = false;
+    pipeStart = null;
+    pipeHover = null;
+    placePendingAt._lastValues = null;
+    clearPalettePressed();
+    canvas.style.cursor = "grab";
+    setMessage("配管の配置をやめました。");
+    refresh();
+    return true;
+  }
+
+  function onPointerDown(event) {
+    if (!isEditablePage() || !doc) {
+      return;
+    }
+    const pos = pointerPos(event);
+    canvas.setPointerCapture(event.pointerId);
+
+    if (placing && pendingType) {
+      const world = screenToWorld(pos.x, pos.y);
+      if (isLinePlaceType(pendingType)) {
+        handlePipePlaceClick(world.xMm, world.yMm);
+      } else {
+        placePendingAt(world.xMm, world.yMm);
+      }
+      return;
+    }
+
+    // 中クリック／Alt＋ドラッグで図面を移動
+    if (event.button === 1 || event.altKey) {
+      startPan(pos);
+      return;
+    }
+
+    // 寸法・名称ラベルを優先して掴む（手動で逃がせる）
+    const labelHit = hitTestLabel(pos.x, pos.y);
+    if (labelHit) {
+      const now = Date.now();
+      if (
+        lastLabelClick &&
+        lastLabelClick.placementId === labelHit.placementId &&
+        lastLabelClick.key === labelHit.key &&
+        now - lastLabelClick.at < 400
+      ) {
+        // ダブルクリックでそのラベル位置をリセット
+        const placement = findPlacement(doc, labelHit.placementId);
+        if (placement) {
+          pushHistory();
+          setLabelOffset(placement, labelHit.key, 0, 0);
+          persist();
+          setMessage("ラベル位置を戻しました。");
+        }
+        lastLabelClick = null;
+        labelDrag = null;
+        refresh();
+        return;
+      }
+      lastLabelClick = { placementId: labelHit.placementId, key: labelHit.key, at: now };
+      selectRelated(labelHit.placementId, event.shiftKey);
+      if (!event.shiftKey) {
+        const scale = DrawView.scale || 0.012;
+        pushHistory();
+        labelDrag = {
+          placementId: labelHit.placementId,
+          key: labelHit.key,
+          startX: pos.x,
+          startY: pos.y,
+          originDxMm: (labelHit.x + labelHit.autoDxPx - labelHit.baseX) / scale,
+          originDyMm: (labelHit.y + labelHit.autoDyPx - labelHit.baseY) / scale,
+          moved: false
+        };
+        canvas.style.cursor = "grabbing";
+      }
+      refresh();
+      return;
+    }
+
+    const hit = hitTest(doc, pos.x, pos.y);
+    if (hit) {
+      selectRelated(hit.id, event.shiftKey);
+      if (!event.shiftKey && (activeTool === "move" || activeTool === "select")) {
+        const world = screenToWorld(pos.x, pos.y);
+        const moving = selectedPlacements();
+        pushHistory();
+        drag = {
+          startX: world.xMm,
+          startY: world.yMm,
+          origins: moving.map((item) => ({
+            id: item.id,
+            xMm: item.xMm,
+            yMm: item.yMm,
+            endXMm: item.endXMm,
+            endYMm: item.endYMm
+          })),
+          moved: false
+        };
+        canvas.style.cursor = "grabbing";
+      }
+      refresh();
+      return;
+    }
+
+    if (!event.shiftKey) {
+      setSelection([]);
+    }
+    startPan(pos);
+    refresh();
+  }
+
+  function startPan(pos) {
+    restoreEditView();
+    pan = { x: pos.x, y: pos.y, ox: DrawView.offsetX, oy: DrawView.offsetY };
+    canvas.style.cursor = "grabbing";
+  }
+
+  function onPointerMove(event) {
+    const pos = pointerPos(event);
+    if (placing && pendingType && isLinePlaceType(pendingType) && pipeStart) {
+      const world = screenToWorld(pos.x, pos.y);
+      pipeHover = { xMm: snapMm(world.xMm), yMm: snapMm(world.yMm) };
+      refresh();
+      return;
+    }
+    if (labelDrag) {
+      const placement = findPlacement(doc, labelDrag.placementId);
+      if (!placement) {
+        return;
+      }
+      const scale = DrawView.scale || 0.012;
+      const dxMm = labelDrag.originDxMm + (pos.x - labelDrag.startX) / scale;
+      const dyMm = labelDrag.originDyMm + (pos.y - labelDrag.startY) / scale;
+      if (Math.abs(pos.x - labelDrag.startX) > 2 || Math.abs(pos.y - labelDrag.startY) > 2) {
+        labelDrag.moved = true;
+      }
+      setLabelOffset(placement, labelDrag.key, dxMm, dyMm);
+      refresh();
+      return;
+    }
+    if (drag) {
+      const world = screenToWorld(pos.x, pos.y);
+      const dx = world.xMm - drag.startX;
+      const dy = world.yMm - drag.startY;
+      const moving = drag.origins
+        .map((origin) => {
+          const placement = findPlacement(doc, origin.id);
+          if (!placement) {
+            return null;
+          }
+          placement.xMm = origin.xMm;
+          placement.yMm = origin.yMm;
+          if (origin.endXMm != null || origin.endYMm != null) {
+            placement.endXMm = origin.endXMm;
+            placement.endYMm = origin.endYMm;
+          }
+          return placement;
+        })
+        .filter(Boolean);
+      if (dx !== 0 || dy !== 0) {
+        drag.moved = true;
+      }
+      movePlacementsBy(doc, moving, dx, dy, doc.site);
+      refresh();
+      return;
+    }
+    if (pan) {
+      DrawView.offsetX = pan.ox + (pos.x - pan.x);
+      DrawView.offsetY = pan.oy + (pos.y - pan.y);
+      snapshotEditView();
+      refresh();
+    }
+  }
+
+  function onPointerUp() {
+    if (labelDrag) {
+      if (!labelDrag.moved && historyPast.length) {
+        historyPast.pop();
+        updateHistoryButtons();
+      } else if (labelDrag.moved) {
+        persist();
+        setMessage("ラベルを動かしました。点線が寸法の基準線につながります。");
+      }
+      labelDrag = null;
+      refresh();
+    }
+    if (drag) {
+      if (!drag.moved && historyPast.length) {
+        // クリックだけで動かしていない場合は履歴を戻す
+        historyPast.pop();
+        updateHistoryButtons();
+      } else if (drag.moved) {
+        const moved = drag.origins
+          .map((origin) => findPlacement(doc, origin.id))
+          .filter(Boolean);
+        if (project.activePage === PAGE_AFTER) {
+          detachAfterPlacements(moved);
+          persist();
+          setMessage("アフターで移動しました。この設備はビフォアの変更に追従しません。");
+        } else if (isEditingBeforePage() && hasAfterPage(project)) {
+          const mirror = mirrorBeforeToAfter(project);
+          persist();
+          setMessage(mirror.mirrored > 0
+            ? "ビフォアを移動し、追従中のアフター設備へ映し出しました。"
+            : "ビフォアを移動しました。");
+        } else {
+          persist();
+        }
+      }
+      drag = null;
+      refresh();
+    }
+    if (pan) {
+      snapshotEditView();
+      pan = null;
+    }
+    canvas.style.cursor = "grab";
+  }
+
+  function resetSelectedLabels() {
+    const ids = Array.from(selectedPlacementIds);
+    if (!ids.length) {
+      setMessage("設備を選んでからリセットしてください。");
+      return;
+    }
+    pushHistory();
+    ids.forEach((id) => {
+      const placement = findPlacement(doc, id);
+      if (placement) {
+        clearLabelOffsets(placement);
+      }
+    });
+    persist();
+    refresh();
+    setMessage("選択中のラベル位置を初期位置に戻しました。");
+  }
+
+  function pointerPos(event) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
+
+  function setTool(tool) {
+    activeTool = tool;
+    document.getElementById("toolSelect").setAttribute("aria-pressed", tool === "select" ? "true" : "false");
+    document.getElementById("toolMove").setAttribute("aria-pressed", tool === "move" ? "true" : "false");
+    canvas.style.cursor = "grab";
+  }
+
+  function panView(dxPx, dyPx) {
+    if (isCompareMode()) {
+      compareView.offsetX += dxPx;
+      compareView.offsetY += dyPx;
+      refresh();
+      return;
+    }
+    DrawView.offsetX += dxPx;
+    DrawView.offsetY += dyPx;
+    snapshotEditView();
+    refresh();
+  }
+
+  function nudge(dx, dy) {
+    if (!isEditablePage()) {
+      return;
+    }
+    const moving = selectedPlacements();
+    if (!moving.length) {
+      return;
+    }
+    pushHistory();
+    movePlacementsBy(doc, moving, dx, dy, doc.site);
+    if (project.activePage === PAGE_AFTER) {
+      detachAfterPlacements(moving);
+      persist();
+      refresh();
+      setMessage("アフターで移動しました。この設備はビフォアの変更に追従しません。");
+      return;
+    }
+    if (isEditingBeforePage() && hasAfterPage(project)) {
+      const mirror = mirrorBeforeToAfter(project);
+      persist();
+      refresh();
+      setMessage(mirror.mirrored > 0
+        ? "ビフォアを移動し、追従中のアフター設備へ映し出しました。"
+        : "ビフォアを移動しました。");
+      return;
+    }
+    persist();
+    refresh();
+  }
+
+  function copySelected() {
+    if (!isEditablePage() || !doc) {
+      setMessage("比較表示中はコピーできません。");
+      return;
+    }
+    const ids = Array.from(selectedPlacementIds);
+    if (!ids.length) {
+      setMessage("コピーする設備を選んでください。");
+      return;
+    }
+    const captured = captureClipboard(doc, ids);
+    if (!captured) {
+      setMessage("コピーできませんでした。");
+      return;
+    }
+    clipboard = captured;
+    clipboardPasteCount = 0;
+    updateClipboardButtons();
+    setMessage(captured.items.length + "件をコピーしました。Ctrl+V または「貼り付け」で置けます。");
+  }
+
+  function pasteClipboard() {
+    if (!isEditablePage() || !doc) {
+      setMessage("比較表示中は貼り付けできません。");
+      return;
+    }
+    if (!clipboard || !clipboard.items || !clipboard.items.length) {
+      setMessage("先に設備をコピーしてください。");
+      return;
+    }
+    pushHistory();
+    clipboardPasteCount += 1;
+    const result = pasteClipboardIntoDoc(doc, clipboard, clipboardPasteCount);
+    if (!result || !result.count) {
+      historyPast.pop();
+      updateHistoryButtons();
+      clipboardPasteCount = Math.max(0, clipboardPasteCount - 1);
+      setMessage("貼り付けできませんでした。");
+      return;
+    }
+    setSelection(result.placements.map((item) => item.id));
+    if (project.activePage === PAGE_AFTER) {
+      persist();
+      refresh();
+      setMessage(result.count + "件をアフターに貼り付けました。");
+      return;
+    }
+    if (isEditingBeforePage() && hasAfterPage(project)) {
+      const mirror = mirrorBeforeToAfter(project);
+      persist();
+      refresh();
+      setMessage(result.count + "件を貼り付けました" +
+        (mirror.added > 0 ? "（アフターにも映し出し）。" : "。"));
+      return;
+    }
+    persist();
+    refresh();
+    setMessage(result.count + "件を貼り付けました。");
+  }
+
+  function updateClipboardButtons() {
+    const copyBtn = document.getElementById("copyButton");
+    const pasteBtn = document.getElementById("pasteButton");
+    if (!copyBtn || !pasteBtn) {
+      return;
+    }
+    const canEdit = isEditablePage() && !!doc;
+    copyBtn.disabled = !canEdit || selectedPlacementIds.size < 1;
+    pasteBtn.disabled = !canEdit || !clipboard || !clipboard.items || !clipboard.items.length;
+  }
+
+  function groupSelected() {
+    const ids = Array.from(selectedPlacementIds);
+    if (ids.length < 2) {
+      setMessage("Shift＋クリックで2つ以上選んでから「一式」を押してください。");
+      return;
+    }
+    pushHistory();
+    const group = createGroup(doc, ids, DEFAULT_GROUP_NAME);
+    if (!group) {
+      historyPast.pop();
+      updateHistoryButtons();
+      setMessage("グループ化できませんでした。");
+      return;
+    }
+    setSelection(group.placementIds.slice());
+    persist();
+    refresh();
+    setMessage("「" + group.name + "」にグループ化しました。");
+  }
+
+  function ungroupSelected() {
+    const groups = new Map();
+    selectedPlacementIds.forEach((id) => {
+      const group = findGroupByPlacement(doc, id);
+      if (group) {
+        groups.set(group.id, group);
+      }
+    });
+    if (!groups.size) {
+      setMessage("解除できる一式がありません。");
+      return;
+    }
+    pushHistory();
+    groups.forEach((group) => ungroup(doc, group.id));
+    persist();
+    refresh();
+    setMessage("一式を解除しました。");
+  }
+
+  function bringSelection(direction) {
+    if (!isEditablePage() || !doc) {
+      return;
+    }
+    const ids = Array.from(selectedPlacementIds);
+    if (!ids.length) {
+      setMessage("設備を選んでから前面／背面を押してください。");
+      return;
+    }
+    pushHistory();
+    const ok = reorderPlacements(doc, ids, direction);
+    if (!ok) {
+      historyPast.pop();
+      updateHistoryButtons();
+      setMessage("順序は変わりませんでした。");
+      return;
+    }
+    persist();
+    refresh();
+    setMessage(direction === "front"
+      ? "選択中を前面にしました。"
+      : "選択中を背面にしました。");
+  }
+
+  function deleteSelected() {
+    if (!selectedPlacementIds.size) {
+      return;
+    }
+    pushHistory();
+    const ids = Array.from(selectedPlacementIds);
+    if (isEditingBeforePage() && hasAfterPage(project)) {
+      // 削除前にリンク先を特定し、追従／切り離しに関係なくアフターからも消す
+      const afterDoc = workDocFromProject(project, PAGE_AFTER);
+      const before = project.pages.before;
+      const after = project.pages.after;
+      const afterIds = [];
+      ids.forEach((beforePlId) => {
+        const beforePl = before.drawing.placements.find((pl) => pl.id === beforePlId);
+        if (!beforePl) {
+          return;
+        }
+        const afterPl = findLinkedAfterPlacement(before, after, beforePl);
+        if (afterPl) {
+          afterIds.push(afterPl.id);
+        }
+      });
+      ids.forEach((id) => removePair(doc, id));
+      afterIds.forEach((id) => removePair(afterDoc, id));
+      setSelection([]);
+      mirrorBeforeToAfter(project);
+      persist();
+      refresh();
+      setMessage("ビフォアから削除し、対応するアフター設備も削除しました。");
+      return;
+    }
+    ids.forEach((id) => removePair(doc, id));
+    setSelection([]);
+    persist();
+    refresh();
+    setMessage(project.activePage === PAGE_AFTER
+      ? "アフターから削除しました（ビフォアはそのままです）。"
+      : "削除しました。");
+  }
+
+  function applyEditorDims() {
+    const placement = findPlacement(doc, primarySelectedId());
+    const equipment = placement ? findEquipment(doc, placement.equipmentId) : null;
+    if (!equipment) {
+      return;
+    }
+    const values = { name: nameInput.value.trim() };
+    const def = equipmentTypeOf(equipment.type);
+    def.fields.forEach((field) => {
+      const input = document.getElementById("ed_" + field.key);
+      values[field.key] = input ? input.value : "";
+    });
+    const shapeInput = document.getElementById("ed_shape");
+    if (shapeInput) {
+      values.shape = shapeInput.value;
+    }
+    const lengthInput = document.getElementById("ed_lengthMm");
+    if (isPipeType(equipment.type) && lengthInput) {
+      values.lengthMm = lengthInput.value;
+    }
+    const missing = requiredDimsPresent(equipment.type, values);
+    if (!values.name) {
+      setMessage("名称を入力してください。");
+      return;
+    }
+    if (missing.length) {
+      setMessage("必須寸法が未入力です: " + missing.join("、"));
+      return;
+    }
+    let pipeLength = null;
+    if (isPipeType(equipment.type)) {
+      pipeLength = parseOptionalMm(values.lengthMm);
+      if (pipeLength == null) {
+        setMessage("長さを入力してください。");
+        return;
+      }
+      if (snapMm(pipeLength) < MOVE_STEP_MM) {
+        setMessage("長さは " + formatMm(MOVE_STEP_MM) + " 以上にしてください。");
+        return;
+      }
+    }
+    pushHistory();
+    let pipeLengthResult = null;
+    if (isPipeType(equipment.type)) {
+      pipeLengthResult = setPipeLengthMm(placement, equipment, pipeLength, doc.site);
+      if (!pipeLengthResult.ok) {
+        historyPast.pop();
+        updateHistoryButtons();
+        setMessage(pipeLengthResult.message || "長さを変更できませんでした。");
+        return;
+      }
+      updateEquipmentDimensions(equipment, {
+        name: values.name,
+        diameterMm: values.diameterMm,
+        lengthMm: pipeLengthMm(placement)
+      });
+      syncPipeDimensions(equipment, placement);
+    } else {
+      updateEquipmentDimensions(equipment, values);
+      clampPlacementToSite(placement, equipment, doc.site);
+    }
+    if (project.activePage === PAGE_AFTER) {
+      detachAfterPlacements([placement]);
+      persist();
+      refresh();
+      if (pipeLengthResult && pipeLengthResult.truncated) {
+        setMessage(pipeLengthResult.message);
+      } else {
+        setMessage("アフターの寸法を更新しました。この設備はビフォアの変更に追従しません。");
+      }
+      return;
+    }
+    if (isEditingBeforePage() && hasAfterPage(project)) {
+      mirrorBeforeToAfter(project);
+    }
+    persist();
+    refresh();
+    if (pipeLengthResult && pipeLengthResult.truncated) {
+      setMessage(pipeLengthResult.message);
+    } else if (isPipeType(equipment.type)) {
+      const dia = equipment.dimensions.diameterMm;
+      setMessage(
+        "配管を更新しました（長さ " + formatMm(equipment.dimensions.lengthMm) +
+        "／太さ " + (dia != null ? dia + "A" : "未確認") + "）。"
+      );
+    } else {
+      setMessage("寸法を更新しました。位置は変えていません。");
+    }
+  }
+
+  function setCrossPadEnabled(enabled) {
+    ["moveUp", "moveDown", "moveLeft", "moveRight"].forEach((id) => {
+      document.getElementById(id).disabled = !enabled;
+    });
+  }
+
+  function refreshEditor() {
+    const deleteBtn = document.getElementById("deleteButton");
+    const groupBtn = document.getElementById("groupButton");
+    const ungroupBtn = document.getElementById("ungroupButton");
+    const frontBtn = document.getElementById("frontButton");
+    const backBtn = document.getElementById("backButton");
+    if (!isEditablePage() || !doc) {
+      inspector.hidden = true;
+      editor.hidden = true;
+      selectionLabel.textContent = "寸法";
+      deleteBtn.disabled = true;
+      groupBtn.disabled = true;
+      ungroupBtn.disabled = true;
+      frontBtn.disabled = true;
+      backBtn.disabled = true;
+      setCrossPadEnabled(false);
+      updateClipboardButtons();
+      return;
+    }
+    const placement = findPlacement(doc, primarySelectedId());
+    const equipment = placement ? findEquipment(doc, placement.equipmentId) : null;
+    const multiCount = selectedPlacementIds.size;
+    const inGroup = placement ? findGroupByPlacement(doc, placement.id) : null;
+    groupBtn.disabled = multiCount < 2;
+    ungroupBtn.disabled = !Array.from(selectedPlacementIds).some((id) => findGroupByPlacement(doc, id));
+    frontBtn.disabled = multiCount < 1;
+    backBtn.disabled = multiCount < 1;
+    updateClipboardButtons();
+    if (!equipment) {
+      inspector.hidden = true;
+      editor.hidden = true;
+      selectionLabel.textContent = "寸法";
+      deleteBtn.disabled = true;
+      frontBtn.disabled = true;
+      backBtn.disabled = true;
+      setCrossPadEnabled(false);
+      return;
+    }
+    inspector.hidden = false;
+    editor.hidden = false;
+    deleteBtn.disabled = false;
+    setCrossPadEnabled(true);
+    if (multiCount > 1 || inGroup) {
+      selectionLabel.textContent = (inGroup ? inGroup.name : "複数選択") +
+        "（" + multiCount + "）／編集: " + equipmentTypeOf(equipment.type).label;
+    } else {
+      selectionLabel.textContent = equipmentTypeOf(equipment.type).label;
+    }
+    nameInput.value = equipment.name;
+    dimFields.innerHTML = "";
+    const flat = flattenDims(equipment);
+    if (isPipeType(equipment.type)) {
+      syncPipeDimensions(equipment, placement);
+      flat.lengthMm = equipment.dimensions.lengthMm;
+      const lengthLabel = document.createElement("label");
+      lengthLabel.textContent = "長さ";
+      const lengthInput = document.createElement("input");
+      lengthInput.id = "ed_lengthMm";
+      lengthInput.type = "text";
+      lengthInput.inputMode = "numeric";
+      lengthInput.value = flat.lengthMm == null ? "" : String(flat.lengthMm);
+      lengthInput.title = "長さ（mm）。始点と向きはそのまま、終点が動きます";
+      lengthInput.placeholder = "mm";
+      lengthLabel.appendChild(lengthInput);
+      dimFields.appendChild(lengthLabel);
+    }
+    equipmentTypeOf(equipment.type).fields.forEach((field) => {
+      const label = document.createElement("label");
+      label.appendChild(document.createTextNode(shortDimLabel(field)));
+      if (field.key === "heightMm") {
+        label.classList.add("field-height");
+      }
+      const input = document.createElement("input");
+      input.id = "ed_" + field.key;
+      input.type = "text";
+      input.inputMode = "numeric";
+      input.title = field.unitSuffix
+        ? (field.label + "（数字のみ。" + field.unitSuffix + "は欄外）" + (field.required ? "" : "／未確認可"))
+        : (field.label + (field.required ? "" : "（任意・未確認可）"));
+      input.placeholder = field.unitSuffix
+        ? "例: 25"
+        : (field.key === "heightMm"
+          ? "未確認可"
+          : (field.required ? "mm" : "未確認"));
+      input.value = flat[field.key] == null ? "" : String(flat[field.key]);
+      if (field.unitSuffix) {
+        const row = document.createElement("span");
+        row.className = "unit-input-row";
+        row.appendChild(input);
+        const suffix = document.createElement("span");
+        suffix.className = "unit-suffix";
+        suffix.textContent = field.unitSuffix;
+        row.appendChild(suffix);
+        label.appendChild(row);
+      } else {
+        label.appendChild(input);
+      }
+      dimFields.appendChild(label);
+    });
+    if (equipmentTypeOf(equipment.type).allowsCustomShape) {
+      const label = document.createElement("label");
+      label.textContent = "形状";
+      const select = document.createElement("select");
+      select.id = "ed_shape";
+      select.innerHTML = '<option value="rect">長方形</option><option value="circle">円形</option>';
+      select.value = equipment.shape || "rect";
+      label.appendChild(select);
+      dimFields.appendChild(label);
+    }
+  }
+
+  function refresh() {
+    updatePageChrome();
+    if (isCompareMode()) {
+      drawCompareScenes();
+      refreshEditor();
+      const zoomPct = Math.round(compareView.scale / 0.012 * 100);
+      statusBar.textContent =
+        "Compare ／ same zoom " + zoomPct + "% ／ Fit / Zoom shared";
+      return;
+    }
+    restoreEditView();
+    if (doc) {
+      drawScene(canvas, doc, selectedPlacementIds, null, {
+        pageRole: project.activePage === PAGE_AFTER ? "after" : "before"
+      });
+      if (placing && pipeStart && isLinePlaceType(pendingType)) {
+        const ctx = canvas.getContext("2d");
+        const tip = pipeHover || pipeStart;
+        drawPipeDraft(ctx, pipeStart, tip);
+      }
+    }
+    refreshEditor();
+    const step = DrawView.gridStepMm || chooseGridStepMm();
+    const zoomPct = Math.round(DrawView.scale / 0.012 * 100);
+    const pageLabel = project.activePage === PAGE_AFTER ? "After" : "Before";
+    statusBar.textContent =
+      pageLabel +
+      " ／ 方眼 " + formatMm(step) +
+      " ／ 移動 " + formatMm(MOVE_STEP_MM) +
+      " ／ " + formatMm(SITE_WIDTH_MM) + "×" + formatMm(SITE_DEPTH_MM) +
+      " ／ " + zoomPct + "%" +
+      (selectedPlacementIds.size ? " ／ 選択 " + selectedPlacementIds.size : "");
+  }
+
+  function compareContentBounds() {
+    const beforeDoc = workDocFromProject(project, PAGE_BEFORE);
+    const afterDoc = workDocFromProject(project, PAGE_AFTER);
+    const bounds = unionBoundsMm(contentBoundsMm(beforeDoc), contentBoundsMm(afterDoc));
+    if (bounds) {
+      return bounds;
+    }
+    return {
+      minX: 0,
+      minY: 0,
+      maxX: project.site.widthMm,
+      maxY: project.site.depthMm
+    };
+  }
+
+  function fitCompareToContent() {
+    const bounds = compareContentBounds();
+    const pad = 36;
+    const refW = Math.max(1, Math.min(canvasBefore.clientWidth, canvasAfter.clientWidth));
+    const refH = Math.max(1, Math.min(canvasBefore.clientHeight, canvasAfter.clientHeight));
+    const bw = Math.max(1000, bounds.maxX - bounds.minX);
+    const bh = Math.max(1000, bounds.maxY - bounds.minY);
+    const sx = (refW - pad * 2) / bw;
+    const sy = (refH - pad * 2) / bh;
+    compareView.scale = clamp(Math.min(sx, sy), DrawView.minScale, DrawView.maxScale);
+    // 左右同じ見え方：同じ scale / offset（キャンバス幅が同じ前提で中央寄せ）
+    const drawnW = bw * compareView.scale;
+    const drawnH = bh * compareView.scale;
+    compareView.offsetX = (refW - drawnW) / 2 - bounds.minX * compareView.scale;
+    compareView.offsetY = (refH - drawnH) / 2 - bounds.minY * compareView.scale;
+    compareView.needFit = false;
+  }
+
+  function applyCompareView() {
+    DrawView.scale = compareView.scale;
+    DrawView.offsetX = compareView.offsetX;
+    DrawView.offsetY = compareView.offsetY;
+  }
+
+  function zoomCompareAt(factor, cx, cy) {
+    const before = {
+      xMm: (cx - compareView.offsetX) / compareView.scale,
+      yMm: (cy - compareView.offsetY) / compareView.scale
+    };
+    compareView.scale = clamp(compareView.scale * factor, DrawView.minScale, DrawView.maxScale);
+    compareView.offsetX = cx - before.xMm * compareView.scale;
+    compareView.offsetY = cy - before.yMm * compareView.scale;
+  }
+
+  function drawCompareScenes() {
+    const beforeDoc = workDocFromProject(project, PAGE_BEFORE);
+    const afterDoc = workDocFromProject(project, PAGE_AFTER);
+    const saved = {
+      scale: DrawView.scale,
+      offsetX: DrawView.offsetX,
+      offsetY: DrawView.offsetY
+    };
+    if (compareView.needFit) {
+      fitCompareToContent();
+    }
+    applyCompareView();
+    if (beforeDoc) {
+      drawScene(canvasBefore, beforeDoc, new Set(), null, { pageRole: "before" });
+    }
+    // 必ず同じスケール・オフセットで描く
+    applyCompareView();
+    if (afterDoc) {
+      drawScene(canvasAfter, afterDoc, new Set(), null, { pageRole: "after" });
+    }
+    DrawView.scale = saved.scale;
+    DrawView.offsetX = saved.offsetX;
+    DrawView.offsetY = saved.offsetY;
+  }
+
+  function persist() {
+    syncSheetInfoFromForm();
+    const result = saveDocument(project);
+    if (!result.ok) {
+      setMessage(result.message);
+    }
+  }
+
+  function setMessage(text) {
+    messageEl.textContent = text || "";
+  }
+
+  function formatDateField(iso) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
+    return match ? match[1] + "/" + match[2] + "/" + match[3] : "";
+  }
+
+  function formatSheetDate(iso) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
+    if (!match) {
+      return "";
+    }
+    return Number(match[1]) + "年" + Number(match[2]) + "月" + Number(match[3]) + "日";
+  }
+
+  function parseDateField(text) {
+    const match = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/.exec(String(text || "").trim());
+    if (!match) {
+      return "";
+    }
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+      return "";
+    }
+    const pad = (value) => String(value).padStart(2, "0");
+    return year + "-" + pad(month) + "-" + pad(day);
+  }
+
+  function sheetInfoFromForm() {
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(sheetDateInput.value) ? sheetDateInput.value : "";
+    return {
+      date: date || todayIsoDate(),
+      title: String(sheetTitleInput.value || "").slice(0, 60),
+      name: String(sheetNameInput.value || "").slice(0, 40)
+    };
+  }
+
+  function syncSheetInfoFromForm() {
+    project.meta = normalizeMeta(sheetInfoFromForm());
+  }
+
+  function applySheetInfoToForm() {
+    const info = normalizeMeta(project.meta);
+    if (document.activeElement !== sheetTitleInput) {
+      sheetTitleInput.value = info.title;
+    }
+    if (document.activeElement !== sheetNameInput) {
+      sheetNameInput.value = info.name;
+    }
+    if (document.activeElement !== sheetDateInput && document.activeElement !== sheetDateText) {
+      sheetDateInput.value = info.date;
+      sheetDateText.value = formatDateField(info.date);
+    }
+  }
+
+  function bindSheetInfo() {
+    const commit = () => {
+      syncSheetInfoFromForm();
+      persist();
+    };
+    sheetTitleInput.addEventListener("change", commit);
+    sheetNameInput.addEventListener("change", commit);
+    sheetDateText.addEventListener("input", () => {
+      if (!sheetDateText.value.trim()) {
+        sheetDateInput.value = "";
+        return;
+      }
+      const iso = parseDateField(sheetDateText.value);
+      if (iso) {
+        sheetDateInput.value = iso;
+      }
+    });
+    sheetDateText.addEventListener("blur", () => {
+      const raw = sheetDateText.value.trim();
+      if (!raw) {
+        sheetDateInput.value = todayIsoDate();
+        sheetDateText.value = formatDateField(sheetDateInput.value);
+        commit();
+        return;
+      }
+      const iso = parseDateField(raw);
+      if (iso) {
+        sheetDateInput.value = iso;
+        sheetDateText.value = formatDateField(iso);
+      } else {
+        sheetDateText.value = formatDateField(sheetDateInput.value || todayIsoDate());
+        if (!sheetDateInput.value) {
+          sheetDateInput.value = todayIsoDate();
+        }
+      }
+      commit();
+    });
+    sheetDateInput.addEventListener("change", () => {
+      if (!sheetDateInput.value) {
+        sheetDateInput.value = todayIsoDate();
+      }
+      sheetDateText.value = formatDateField(sheetDateInput.value);
+      commit();
+    });
+  }
+
+  function downloadDrawingFile() {
+    syncSheetInfoFromForm();
+    const fileName = buildDownloadBaseName(project.meta, VIEW_LABEL_PLAN) + ".json";
+    const payload = JSON.parse(JSON.stringify(project));
+    payload.schema = SCHEMA_ID;
+    payload.version = 2;
+    payload.meta = normalizeMeta(project.meta);
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    persist();
+    setMessage("ダウンロードフォルダに保存しました（" + fileName + "）");
+  }
+
+  function openDrawingFile(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result));
+        if (!data || data.schema !== SCHEMA_ID) {
+          setMessage("このファイルはLPガス設備図面V2として開けません。");
+          return;
+        }
+        const hasContent = (project.pages.before.equipment && project.pages.before.equipment.length)
+          || (project.pages.after && project.pages.after.equipment && project.pages.after.equipment.length);
+        if (hasContent && !window.confirm("今の図面を、開くファイルに替えます。よろしいですか？")) {
+          return;
+        }
+        pushHistory();
+        project = normalizeDocument(data);
+        bindActivePage(false);
+        historyFuture = [];
+        updateHistoryButtons();
+        applySheetInfoToForm();
+        fitSiteToCanvas(canvas, project.site);
+        snapshotEditView();
+        persist();
+        refresh();
+        updatePageChrome();
+        setMessage("保存した図面を開きました。");
+      } catch (error) {
+        setMessage("このファイルはLPガス設備図面V2として開けません。");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function printInfoLines() {
+    const info = normalizeMeta(project.meta);
+    const lines = [];
+    if (info.date) {
+      lines.push({ label: "Date", value: formatSheetDate(info.date) });
+    }
+    lines.push({ label: "Drawing", value: "Plan View" });
+    if (info.title) {
+      lines.push({ label: "Title", value: info.title });
+    }
+    if (info.name) {
+      lines.push({ label: "Name", value: info.name });
+    }
+    if (project.activePage === PAGE_AFTER) {
+      lines.push({ label: "Page", value: "After" });
+    } else if (project.activePage === PAGE_COMPARE) {
+      lines.push({ label: "Page", value: "Compare" });
+    } else {
+      lines.push({ label: "Page", value: "Before" });
+    }
+    return lines;
+  }
+
+  function renderPrintSheet() {
+    syncSheetInfoFromForm();
+    const pageW = 3508;
+    const pageH = 2480;
+    const margin = 90;
+    const lines = printInfoLines();
+    const infoPadX = 28;
+    const infoPadY = 20;
+    const infoLineH = 64;
+    const infoMargin = 48;
+    const infoBand = lines.length ? infoMargin + infoPadY * 2 + infoLineH * lines.length + 12 : 0;
+
+    const sheet = document.createElement("canvas");
+    sheet.width = pageW;
+    sheet.height = pageH;
+    const pen = sheet.getContext("2d");
+    pen.fillStyle = "#ffffff";
+    pen.fillRect(0, 0, pageW, pageH);
+
+    const savedView = {
+      scale: DrawView.scale,
+      offsetX: DrawView.offsetX,
+      offsetY: DrawView.offsetY
+    };
+
+    const drawAreaH = pageH - infoBand;
+    if (isCompareMode() && hasAfterPage(project)) {
+      const beforeDoc = workDocFromProject(project, PAGE_BEFORE);
+      const afterDoc = workDocFromProject(project, PAGE_AFTER);
+      const halfW = Math.floor((pageW - margin * 3) / 2);
+      const paneH = drawAreaH - margin * 2;
+      printOnePlan(pen, beforeDoc, margin, margin, halfW, paneH, "Before", "before");
+      printOnePlan(pen, afterDoc, margin * 2 + halfW, margin, halfW, paneH, "After", "after");
+    } else {
+      const printDoc = doc || workDocFromProject(project, PAGE_BEFORE);
+      const role = project.activePage === PAGE_AFTER ? "after" : "before";
+      printOnePlan(pen, printDoc, margin, margin, pageW - margin * 2, drawAreaH - margin * 2, "", role);
+    }
+
+    DrawView.scale = savedView.scale;
+    DrawView.offsetX = savedView.offsetX;
+    DrawView.offsetY = savedView.offsetY;
+
+    if (lines.length) {
+      pen.textBaseline = "middle";
+      pen.textAlign = "left";
+      pen.font = "700 44px sans-serif";
+      let labelWidth = 0;
+      lines.forEach((line) => {
+        labelWidth = Math.max(labelWidth, pen.measureText(line.label).width);
+      });
+      labelWidth += 36;
+      const valueSizes = lines.map((line) => {
+        let size = 48;
+        pen.font = "700 " + size + "px sans-serif";
+        while (size > 28 && pen.measureText(line.value).width > 900) {
+          size -= 2;
+          pen.font = "700 " + size + "px sans-serif";
+        }
+        return size;
+      });
+      let valueWidth = 0;
+      lines.forEach((line, index) => {
+        pen.font = "700 " + valueSizes[index] + "px sans-serif";
+        valueWidth = Math.max(valueWidth, pen.measureText(line.value).width);
+      });
+      const boxW = infoPadX * 2 + labelWidth + valueWidth;
+      const boxH = infoPadY * 2 + infoLineH * lines.length;
+      const boxX = pageW - infoMargin - boxW;
+      const boxY = pageH - infoMargin - boxH;
+      pen.fillStyle = "#ffffff";
+      pen.fillRect(boxX, boxY, boxW, boxH);
+      pen.strokeStyle = "#7f97a8";
+      pen.lineWidth = 1.6;
+      pen.strokeRect(boxX, boxY, boxW, boxH);
+      lines.forEach((line, index) => {
+        const y = boxY + infoPadY + infoLineH * index + infoLineH / 2;
+        pen.fillStyle = "#1a2430";
+        pen.font = "700 44px Yu Gothic UI, Meiryo, sans-serif";
+        pen.fillText(line.label, boxX + infoPadX, y);
+        pen.fillStyle = "#111418";
+        pen.font = "700 " + valueSizes[index] + "px Yu Gothic UI, Meiryo, sans-serif";
+        pen.fillText(line.value, boxX + infoPadX + labelWidth, y);
+      });
+    }
+
+    return sheet;
+  }
+
+  function downloadDrawingPdf() {
+    try {
+      const sheet = renderPrintSheet();
+      const pageName = project.activePage === PAGE_AFTER ? "アフター" :
+        project.activePage === PAGE_COMPARE ? "比較" : "ビフォア";
+      const fileName = buildDownloadBaseName(project.meta, VIEW_LABEL_PLAN) + "_" + pageName + ".pdf";
+      const url = URL.createObjectURL(createPlanPdf(sheet));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      setMessage("PDFを保存しました（" + fileName + "）");
+    } catch (error) {
+      console.error("PDF保存に失敗しました", error);
+      setMessage("PDF保存に失敗しました。もう一度お試しください。");
+    }
+  }
+
+  function printDrawing() {
+    const sheet = renderPrintSheet();
+    const holder = document.createElement("div");
+    holder.className = "print-sheet";
+    sheet.setAttribute("aria-label", (project.meta && project.meta.title) || VIEW_LABEL_PLAN);
+    holder.appendChild(sheet);
+    document.body.appendChild(holder);
+    const cleanup = () => {
+      holder.remove();
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    window.print();
+    setMessage("印刷ダイアログを開きました。");
+  }
+
+  function printOnePlan(targetCtx, printDoc, x, y, w, h, caption, pageRole) {
+    if (!printDoc) {
+      return;
+    }
+    const off = document.createElement("canvas");
+    const bounds = contentBoundsMm(printDoc) || {
+      minX: 0,
+      minY: 0,
+      maxX: project.site.widthMm,
+      maxY: project.site.depthMm
+    };
+    const pad = 36;
+    const bw = Math.max(1000, bounds.maxX - bounds.minX);
+    const bh = Math.max(1000, bounds.maxY - bounds.minY);
+    const sx = (w - pad * 2) / bw;
+    const sy = (h - pad * 2 - (caption ? 36 : 0)) / bh;
+    DrawView.scale = Math.min(sx, sy);
+    DrawView.offsetX = pad - bounds.minX * DrawView.scale;
+    DrawView.offsetY = pad + (caption ? 28 : 0) - bounds.minY * DrawView.scale;
+    drawScene(off, printDoc, new Set(), { width: w, height: h }, {
+      pageRole: pageRole === "after" ? "after" : "before",
+      printMode: true
+    });
+    targetCtx.drawImage(off, x, y);
+    if (caption) {
+      targetCtx.fillStyle = "#111418";
+      targetCtx.font = "700 44px Yu Gothic UI, Meiryo, sans-serif";
+      targetCtx.textAlign = "left";
+      targetCtx.textBaseline = "top";
+      targetCtx.strokeStyle = "rgba(255,255,255,0.95)";
+      targetCtx.lineWidth = 4;
+      targetCtx.strokeText(caption, x + 12, y + 8);
+      targetCtx.fillText(caption, x + 12, y + 8);
+    }
+  }
+
+  function clearPalettePressed() {
+    paletteEl.querySelectorAll(".palette-btn").forEach((btn) => {
+      btn.setAttribute("aria-pressed", "false");
+    });
+  }
+})();
+
+</script>
+</body>
+</html>

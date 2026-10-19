@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LPガス設備図面作成 V2</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="palette" aria-label="設備選択">
+      <div class="palette-brand" title="LPガス設備図面作成 V2">
+        <span class="brand-mark">V2</span>
+      </div>
+      <div id="palette" class="palette-list"></div>
+    </aside>
+
+    <main class="stage-wrap">
+      <canvas id="canvas" aria-label="作図エリア（平面図）"></canvas>
+
+      <div id="compareStage" class="compare-stage" hidden>
+        <div class="compare-pane">
+          <p class="compare-label">Before</p>
+          <canvas id="canvasBefore" aria-label="Before plan"></canvas>
+        </div>
+        <div class="compare-pane">
+          <p class="compare-label">After</p>
+          <canvas id="canvasAfter" aria-label="After plan"></canvas>
+        </div>
+      </div>
+
+      <!-- 上：透明オーバーレイ（作図領域は縮めない） -->
+      <div class="hud hud-top" aria-label="編集・表示操作">
+        <div class="hud-top-main">
+          <div class="hud-cluster page-tabs" aria-label="図面ページ">
+            <button type="button" id="pageBefore" class="hud-btn page-btn" aria-pressed="true" title="Before (current)">Before</button>
+            <button type="button" id="pageAfter" class="hud-btn page-btn" aria-pressed="false" title="After (proposed)">After</button>
+            <button type="button" id="pageCompare" class="hud-btn page-btn" aria-pressed="false" title="Compare" disabled>Compare</button>
+            <button type="button" id="copyAfterButton" class="hud-btn" title="Copy Before to create After">Copy</button>
+          </div>
+          <div class="hud-edit-tools" id="editTools">
+            <div class="hud-cluster hud-edit-only">
+              <button type="button" id="undoButton" class="hud-btn" disabled title="戻る（Ctrl+Z）">戻る</button>
+              <button type="button" id="redoButton" class="hud-btn" disabled title="やり直す（Ctrl+Y）">進む</button>
+              <button type="button" id="toolSelect" class="hud-btn tool-btn" aria-pressed="true" title="選択">選択</button>
+              <button type="button" id="toolMove" class="hud-btn tool-btn" aria-pressed="false" title="移動">移動</button>
+              <button type="button" id="groupButton" class="hud-btn" disabled title="選択中を一式にグループ化">一式</button>
+              <button type="button" id="ungroupButton" class="hud-btn" disabled title="一式を解除">解除</button>
+              <button type="button" id="copyButton" class="hud-btn" disabled title="選択中をコピー（Ctrl+C）">コピー</button>
+              <button type="button" id="pasteButton" class="hud-btn" disabled title="貼り付け（Ctrl+V）">貼り付け</button>
+              <button type="button" id="frontButton" class="hud-btn" disabled title="選択中を最前面へ">前面</button>
+              <button type="button" id="backButton" class="hud-btn" disabled title="選択中を最背面へ">背面</button>
+              <button type="button" id="deleteButton" class="hud-btn danger" disabled title="削除">削除</button>
+            </div>
+            <div class="hud-cluster" id="viewZoomTools">
+              <button type="button" id="zoomOutButton" class="hud-btn" title="縮小">縮小</button>
+              <button type="button" id="fitButton" class="hud-btn" title="全体表示">全体</button>
+              <button type="button" id="zoomInButton" class="hud-btn" title="拡大">拡大</button>
+            </div>
+            <div class="hud-cluster view-nudge" id="viewPanTools" aria-label="表示位置">
+              <button type="button" id="panUp" class="hud-btn compact" title="表示を上へ" aria-label="表示を上へ">↑</button>
+              <div class="nudge-row">
+                <button type="button" id="panLeft" class="hud-btn compact" title="表示を左へ" aria-label="表示を左へ">←</button>
+                <button type="button" id="panRight" class="hud-btn compact" title="表示を右へ" aria-label="表示を右へ">→</button>
+              </div>
+              <button type="button" id="panDown" class="hud-btn compact" title="表示を下へ" aria-label="表示を下へ">↓</button>
+            </div>
+          </div>
+        </div>
+        <div class="file-tools" aria-label="図面情報とファイル操作">
+          <div class="sheet-info">
+            <label>日付
+              <span class="date-field">
+                <input id="sheetDateText" type="text" maxlength="10" autocomplete="off" spellcheck="false" placeholder="年/月/日">
+                <input id="sheetDateInput" type="date" aria-label="カレンダー">
+              </span>
+            </label>
+            <label>タイトル
+              <input id="sheetTitleInput" type="text" maxlength="60" placeholder="題名" autocomplete="off" spellcheck="false">
+            </label>
+            <label>名前
+              <input id="sheetNameInput" type="text" maxlength="40" value="ニイミ産業" autocomplete="off" spellcheck="false">
+            </label>
+          </div>
+          <div class="file-buttons">
+            <button type="button" id="openButton" class="hud-btn" title="保存したJSON図面を開く">開く</button>
+            <button type="button" id="saveButton" class="hud-btn" title="ダウンロードフォルダにJSON保存">保存</button>
+            <button type="button" id="pdfButton" class="hud-btn" title="表示中の図面をA4横のPDFとして保存">PDF保存</button>
+            <button type="button" id="printButton" class="hud-btn" title="平面図を印刷">印刷</button>
+          </div>
+        </div>
+      </div>
+      <input type="file" id="openFile" accept="application/json,.json" hidden>
+
+      <div class="status-chip" id="statusBar" aria-live="polite"></div>
+      <p id="message" class="toast" role="status"></p>
+
+      <!-- 下右：寸法操作（左）＋ 図形移動十字キー（右） -->
+      <div class="hud hud-bottom-right" aria-label="寸法と移動">
+        <aside class="dim-dock" id="inspector" aria-label="採寸・寸法操作" hidden>
+          <p id="selectionLabel" class="selection-label">寸法</p>
+          <div id="editor" class="editor" hidden>
+            <div id="dimFields" class="dim-fields"></div>
+            <label class="name-field">名称
+              <input id="nameInput" type="text" maxlength="40" autocomplete="off">
+            </label>
+            <button type="button" id="applyDimsButton" class="hud-btn primary compact-wide">反映</button>
+            <button type="button" id="resetLabelsButton" class="hud-btn compact-wide" title="寸法・名称の位置を初期位置に戻す">ラベル位置リセット</button>
+          </div>
+        </aside>
+
+        <div class="cross-pad" aria-label="図形を100mm移動">
+          <span class="cross-label">移動 100mm</span>
+          <button type="button" id="moveUp" class="hud-btn compact cross-btn" aria-label="上へ" disabled>↑</button>
+          <div class="cross-mid">
+            <button type="button" id="moveLeft" class="hud-btn compact cross-btn" aria-label="左へ" disabled>←</button>
+            <button type="button" id="moveRight" class="hud-btn compact cross-btn" aria-label="右へ" disabled>→</button>
+          </div>
+          <button type="button" id="moveDown" class="hud-btn compact cross-btn" aria-label="下へ" disabled>↓</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="dimDialog">
+    <form method="dialog" id="dimForm">
+      <h2 id="dimDialogTitle">寸法入力</h2>
+      <p class="dialog-note">空欄＝未確認（推測しません）</p>
+      <div class="dialog-grid">
+        <div id="dialogFields" class="dialog-size-row"></div>
+        <label class="dialog-name">名称
+          <input id="dialogName" type="text" maxlength="40" autocomplete="off">
+        </label>
+        <div id="otherShapeFields" hidden>
+          <label>形状
+            <select id="dialogShape">
+              <option value="rect">長方形</option>
+              <option value="circle">円形</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="dimCancelButton" formnovalidate>やめる</button>
+        <button type="submit" value="ok" class="primary" id="dimOkButton">配置</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/catalog.js"></script>
+  <script src="js/model.js"></script>
+  <script src="js/draw.js"></script>
+  <script src="js/pdf.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

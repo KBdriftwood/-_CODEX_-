@@ -1,0 +1,829 @@
+:root {
+  --bg: #ebe8e3;
+  --panel: rgba(245, 244, 241, 0.55);
+  --panel-solid: #f5f4f1;
+  --ink: #3a3f46;
+  --ink-strong: #2a2e34;
+  --muted: #6b717a;
+  --line: rgba(138, 144, 153, 0.45);
+  --line-strong: #8a9099;
+  --accent: #5a6570;
+  --accent-strong: #3f4852;
+  --danger: #8a3d36;
+  --canvas-bg: #fafaf8;
+  --hud-bg: #d8dce1;
+  --hud-bg-hover: #c9ced5;
+  --hud-bg-active: #b8bfc8;
+  font-family: "Yu Gothic UI", "Hiragino Sans", Meiryo, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--hud-bg);
+  color: var(--ink-strong);
+  /* ボタン上は矢印。図面上の掴み（手）と区別する */
+  cursor: default;
+}
+
+button:hover:not(:disabled) {
+  background: var(--hud-bg-hover);
+}
+
+button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+button.primary {
+  background: #c5ccd5;
+  border-color: var(--accent);
+}
+
+button.danger {
+  border-color: rgba(168, 90, 82, 0.5);
+  color: var(--danger);
+}
+
+button[aria-pressed="true"],
+.tool-btn[aria-pressed="true"],
+.palette-btn[aria-pressed="true"],
+.hud-btn[aria-pressed="true"] {
+  background: var(--hud-bg-active);
+  border-color: var(--accent-strong);
+  box-shadow: inset 0 0 0 1px var(--accent-strong);
+}
+
+.app {
+  height: 100dvh;
+  width: 100vw;
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* 左：設備選択（スクロールなしで全部表示） */
+.palette {
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 5px;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  overflow: hidden;
+  min-height: 0;
+}
+
+.palette-brand {
+  display: flex;
+  justify-content: center;
+  padding: 0 0 2px;
+  flex: 0 0 auto;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: rgba(90, 101, 112, 0.14);
+  border: 1px solid var(--line);
+  color: var(--ink-strong);
+  font-weight: 700;
+  font-size: 10px;
+}
+
+.palette-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.palette-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 0 !important;
+  max-height: 34px;
+  height: auto;
+  padding: 2px 5px;
+  text-align: left;
+  background: var(--hud-bg);
+  border: 1px solid var(--line);
+  color: var(--ink-strong);
+  border-radius: 5px;
+}
+
+.palette-btn:hover:not(:disabled) {
+  background: var(--hud-bg-hover);
+}
+
+.palette-btn .icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: var(--ink-strong);
+}
+
+.palette-btn .label {
+  font-size: 10.5px;
+  font-weight: 650;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 作図エリア：端まで最大化 */
+.stage-wrap {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  height: 100dvh;
+  width: 100%;
+  background: var(--canvas-bg);
+  overflow: hidden;
+}
+
+#canvas {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+/* HUD：図面の上に重ねる。ボタン等以外は透過して図面を掴めるようにする */
+.hud {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  pointer-events: none;
+}
+
+.hud button,
+.hud input,
+.hud select,
+.hud label,
+.hud .dim-dock,
+.hud .cross-pad {
+  pointer-events: auto;
+}
+
+.hud-top {
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.hud-top-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.hud-edit-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.file-tools {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.file-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.sheet-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sheet-info label {
+  display: grid;
+  grid-template-columns: 3.6em 148px;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-strong);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sheet-info input[type="text"] {
+  width: 100%;
+  height: 26px;
+  min-height: 26px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink-strong);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.date-field {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 26px;
+}
+
+.date-field input[type="text"] {
+  padding-right: 26px;
+}
+
+.date-field input[type="date"] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 28px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: transparent;
+  cursor: default;
+}
+
+.date-field input[type="date"]::-webkit-calendar-picker-indicator {
+  margin: 0;
+  padding: 0;
+  cursor: default;
+  width: 16px;
+  height: 16px;
+}
+
+.print-sheet {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 0;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body > * {
+    display: none !important;
+  }
+
+  body > .print-sheet {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100vh;
+    page-break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-sheet canvas {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100vh;
+    margin: auto;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+.page-tabs {
+  flex: 0 1 auto;
+}
+
+.page-btn[aria-pressed="true"] {
+  background: var(--hud-bg-active);
+  border-color: var(--accent-strong);
+}
+
+.compare-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 48px 8px 40px;
+  background: var(--canvas-bg);
+  pointer-events: auto;
+}
+
+.compare-pane {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.compare-label {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  z-index: 2;
+  margin: 0;
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: rgba(245, 244, 241, 0.85);
+  color: var(--ink-strong);
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.compare-pane canvas {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.stage-wrap.is-compare #canvas,
+.stage-wrap.is-compare .hud-bottom-right {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.stage-wrap.is-compare .hud-edit-only {
+  display: none;
+}
+
+.app.is-compare .palette {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.hud-bottom-right {
+  right: 8px;
+  bottom: 8px;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: calc(100% - 16px);
+}
+
+.hud-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+
+.hud-btn {
+  min-height: 30px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink-strong);
+  background: var(--hud-bg);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(1.5px);
+}
+
+.hud-btn.compact {
+  min-width: 34px;
+  min-height: 30px;
+  padding: 3px 7px;
+}
+
+.hud-btn.compact-wide {
+  width: 100%;
+  min-height: 28px;
+  font-size: 11px;
+}
+
+.view-nudge {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+}
+
+.nudge-row,
+.cross-mid {
+  display: flex;
+  gap: 3px;
+}
+
+.status-chip {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 4;
+  max-width: min(360px, 40vw);
+  padding: 4px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: rgba(245, 244, 241, 0.55);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+  pointer-events: none;
+  backdrop-filter: blur(1.5px);
+}
+
+/* 採寸・寸法：十字キーの左側（スクロールなし・全体表示） */
+.dim-dock {
+  width: min(180px, 42vw);
+  max-height: none;
+  overflow: hidden;
+  padding: 4px 5px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: rgba(245, 244, 241, 0.28);
+  backdrop-filter: blur(2px);
+  box-sizing: border-box;
+}
+
+.dim-dock .selection-label {
+  margin: 0 0 3px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--ink-strong);
+  line-height: 1.15;
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.editor label {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  color: var(--muted);
+  line-height: 1.1;
+}
+
+.editor label.name-field {
+  grid-template-columns: 36px minmax(0, 1fr);
+}
+
+.dim-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px 3px;
+  width: 100%;
+  min-width: 0;
+}
+
+.dim-fields label {
+  grid-template-columns: 1fr;
+  gap: 1px;
+  font-size: 9px;
+  font-weight: 650;
+  color: var(--ink-strong);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.editor input,
+.editor select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 20px;
+  height: 20px;
+  padding: 0 3px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.45);
+  color: var(--ink-strong);
+  font-size: 10px;
+}
+
+.dim-dock .hud-btn.compact-wide {
+  min-height: 22px;
+  padding: 1px 5px;
+  font-size: 9px;
+  margin-top: 1px;
+}
+
+/* 右下：図形移動十字キー */
+.cross-pad {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(245, 244, 241, 0.22);
+  backdrop-filter: blur(1.5px);
+}
+
+.cross-label {
+  font-size: 10px;
+  font-weight: 650;
+  color: var(--ink-strong);
+  margin-bottom: 2px;
+}
+
+.cross-btn {
+  font-size: 14px;
+}
+
+/* 説明文は左下。サイズ表示（status-chip）の上に重ねない */
+.toast {
+  position: absolute;
+  left: 8px;
+  top: auto;
+  bottom: 42px;
+  z-index: 5;
+  margin: 0;
+  max-width: min(320px, 42vw);
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink-strong);
+  font-size: 12px;
+  line-height: 1.35;
+  pointer-events: none;
+  text-align: left;
+  backdrop-filter: blur(1.5px);
+}
+
+.toast:empty {
+  display: none;
+}
+
+/* ブラウザ標準の dialog 引き伸ばし／スクロールを止め、内容サイズに合わせる */
+#dimDialog,
+#dimDialog[open] {
+  position: fixed;
+  inset: unset;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  width: min(360px, calc(100vw - 24px));
+  height: fit-content !important;
+  max-height: min(90vh, 640px) !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 0;
+  background: var(--panel-solid);
+  color: var(--ink);
+  box-sizing: border-box;
+}
+
+#dimDialog::backdrop {
+  background: rgba(40, 44, 52, 0.35);
+}
+
+#dimForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  overflow: auto;
+  max-height: min(90vh, 640px);
+  box-sizing: border-box;
+}
+
+#dimDialog h2 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-strong);
+  line-height: 1.2;
+}
+
+.dialog-note {
+  margin: 0;
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.25;
+}
+
+.dialog-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+#dimDialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.15;
+}
+
+#dimDialog label.dialog-name {
+  width: 100%;
+}
+
+#dimDialog input,
+#dimDialog select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 26px;
+  height: 26px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink-strong);
+  font-size: 12px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 0;
+}
+
+.dialog-actions button {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+#dialogFields,
+.dialog-size-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 8px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  order: -1;
+}
+
+#dialogFields label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--ink-strong);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+#dialogFields label.field-height {
+  /* 高さ欄も同じグリッド内に収める */
+  min-width: 0;
+  max-width: 100%;
+}
+
+.unit-input-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  width: 100%;
+}
+
+.unit-input-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.unit-suffix {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-strong);
+  line-height: 1;
+}
+
+.dim-fields .unit-suffix {
+  font-size: 10px;
+}
+
+#otherShapeFields label {
+  font-size: 10px;
+}
+
+.field-hint {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .app {
+    grid-template-columns: 108px minmax(0, 1fr);
+  }
+
+  .palette-btn .label {
+    font-size: 10px;
+  }
+
+  .dim-dock {
+    width: min(168px, 48vw);
+  }
+
+  #dimDialog,
+  #dimDialog[open] {
+    width: min(340px, calc(100vw - 16px));
+  }
+
+  #dialogFields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hud-top {
+    justify-content: flex-start;
+  }
+
+  .status-chip {
+    max-width: min(200px, 36vw);
+    font-size: 9px;
+  }
+}
