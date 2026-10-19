@@ -51,6 +51,7 @@ export default function App() {
     ...(selected?.state ?? DEFAULT_STATE),
     ...camera,
   };
+  const [shadowDirection, setShadowDirection] = useState(0);
   const [mode, setMode] = useState<Mode>("move");
   const [original, setOriginal] = useState<Photo | null>(null);
   const [photo, setPhoto] = useState<Photo | null>(null);
@@ -423,6 +424,7 @@ export default function App() {
               photo={photo}
               state={state}
               mode={mode}
+              shadowDirection={shadowDirection}
               loading={loading}
               onState={onState}
               items={items}
@@ -436,6 +438,8 @@ export default function App() {
               state={state}
               mode={mode}
               setMode={setMode}
+              shadowDirection={shadowDirection}
+              onShadowDirection={() => setShadowDirection((value) => (value + 1) % 4)}
               onChange={onChange}
               selected={!!selected}
               library={

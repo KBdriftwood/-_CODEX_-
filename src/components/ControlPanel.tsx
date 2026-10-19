@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { EditorState, Mode } from "../state/editor";
+import { SHADOW_DIRECTIONS } from "../scene/GroundShadow";
 import { Adjustment } from "./Adjustment";
 
 export const MODES = [
@@ -37,6 +38,8 @@ interface Props {
   onChange: (key: keyof EditorState, value: number) => void;
   library?: ReactNode;
   selected?: boolean;
+  shadowDirection?: number;
+  onShadowDirection?: () => void;
 }
 
 export function ControlPanel({
@@ -46,6 +49,8 @@ export function ControlPanel({
   onChange,
   library,
   selected = true,
+  shadowDirection = 0,
+  onShadowDirection,
 }: Props) {
   const adjustment = (
     field: keyof EditorState,
@@ -66,6 +71,12 @@ export function ControlPanel({
   return (
     <aside className="control-panel" aria-label="設備と操作の設定">
       {library}
+      <section className="panel-section" aria-label="全設備の影">
+        <button className="button" onClick={onShadowDirection}>
+          影の向き：{SHADOW_DIRECTIONS[shadowDirection]}
+        </button>
+        <p>押すたびに4方向へ切り替わります。全設備に共通です。</p>
+      </section>
       <section className="panel-section adjustments-section">
         <div className="section-heading">
           <h2>

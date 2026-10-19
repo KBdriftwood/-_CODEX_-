@@ -49,6 +49,14 @@ test("単一HTMLの内容だけで、ネット未接続でも写真・修復・3
   await expect(
     page.getByRole("button", { name: "PNG保存", exact: true }),
   ).toBeEnabled({ timeout: 15_000 });
+  for (const direction of ["右下", "左下", "左上", "右上"]) {
+    const button = page.getByRole("button", {
+      name: `影の向き：${direction}`,
+      exact: true,
+    });
+    await expect(button).toBeVisible();
+    await button.click();
+  }
   await expect(page.locator(".file-name")).toHaveText(
     "サンプル背景（イラスト）",
   );

@@ -2,7 +2,11 @@ import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { BULK_MODEL, getDefinition } from "../models/catalog";
 import { createEquipment, disposeObject } from "../models/equipment";
-import { GroundShadow, KEY_LIGHT_POSITION } from "./GroundShadow";
+import {
+  GroundShadow,
+  KEY_LIGHT_POSITION,
+  shadowLightPosition,
+} from "./GroundShadow";
 import { DEFAULT_STATE, type EditorState } from "../state/editor";
 import type { PlacedEquipment } from "../state/editor";
 
@@ -31,6 +35,13 @@ export class EquipmentScene {
   private itemRevision = 0;
   private pending: Promise<void> = Promise.resolve();
   private multiple = false;
+  private shadowDirection = 0;
+  private readonly keyLight = new THREE.DirectionalLight("#fff4dc", 3);
+
+  setShadowDirection(direction: number) {
+    this.shadowDirection = direction;
+    this.update(this.state);
+  }
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -53,7 +64,7 @@ export class EquipmentScene {
     room.dispose();
     pmrem.dispose();
     this.scene.add(new THREE.HemisphereLight("#ffffff", "#748291", 2.2));
-    const key = new THREE.DirectionalLight("#fff4dc", 3);
+    const key = this.keyLight;
     key.position.set(...KEY_LIGHT_POSITION);
     this.scene.add(key);
     this.anchor.add(this.anchorShadow, this.equipment);
@@ -155,6 +166,13 @@ export class EquipmentScene {
   update(state: EditorState) {
     if (this.disposed) return;
     this.state = state;
+    const light = shadowLightPosition(
+      this.shadowDirection,
+      state.azimuth,
+      state.elevation,
+    );
+    this.keyLight.position.copy(light);
+    const lightSignature = `${this.shadowDirection}:${state.azimuth}:${state.elevation < 0}`;
     const radians = THREE.MathUtils.degToRad;
     // 画角変更時に距離を補正し、表示サイズと遠近感を別々に調整する。
     const visibleHeight = 6.6;
@@ -196,7 +214,8 @@ export class EquipmentScene {
     if (!this.multiple)
       this.anchorShadow.updateFor(
         this.equipment,
-        `${state.pitch}:${state.yaw}:${state.roll}`,
+        `${state.pitch}:${state.yaw}:${state.roll}:${lightSignature}`,
+        light,
       );
     if (this.multiple)
       for (const node of this.nodes.values()) {
@@ -226,7 +245,8 @@ export class EquipmentScene {
         );
         node.shadow.updateFor(
           node.object,
-          `${value.pitch}:${value.yaw}:${value.roll}`,
+          `${value.pitch}:${value.yaw}:${value.roll}:${lightSignature}`,
+          light,
         );
       }
     this.render();

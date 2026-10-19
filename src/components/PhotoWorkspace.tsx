@@ -34,6 +34,7 @@ interface Props {
   photo: Photo | null;
   state: EditorState;
   mode: Mode;
+  shadowDirection?: number;
   loading: boolean;
   onState: (state: EditorState, id?: string) => void;
   onUpload: () => void;
@@ -55,6 +56,7 @@ export const PhotoWorkspace = forwardRef<WorkspaceHandle, Props>(
       photo,
       state,
       mode,
+      shadowDirection = 0,
       loading,
       onState,
       onUpload,
@@ -153,6 +155,9 @@ export const PhotoWorkspace = forwardRef<WorkspaceHandle, Props>(
     useLayoutEffect(() => {
       sceneRef.current?.resize(fitted.width, fitted.height, aspect);
     }, [fitted.width, fitted.height, aspect]);
+    useEffect(() => {
+      sceneRef.current?.setShadowDirection(shadowDirection);
+    }, [shadowDirection]);
     useEffect(() => {
       sceneRef.current?.update(state);
     }, [state]);

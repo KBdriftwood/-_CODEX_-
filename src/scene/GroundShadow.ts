@@ -1,10 +1,28 @@
 import * as THREE from "three";
 
 export const KEY_LIGHT_POSITION = [-4, 7, 5] as const;
+export const SHADOW_DIRECTIONS = ["右下", "左下", "左上", "右上"] as const;
+
+// 写真上の方向を保つため、共通光源をカメラの向きに合わせる。
+export function shadowLightPosition(
+  direction: number,
+  azimuth: number,
+  elevation: number,
+) {
+  const [right, down] = [[1, 1], [-1, 1], [-1, -1], [1, -1]][direction];
+  const angle = THREE.MathUtils.degToRad(azimuth);
+  const depth = down * (elevation < 0 ? -1 : 1);
+  return new THREE.Vector3(
+    -4 * (right * Math.cos(angle) + depth * Math.sin(angle)),
+    7,
+    -4 * (-right * Math.sin(angle) + depth * Math.cos(angle)),
+  );
+}
+
 const FLOOR_Y = -0.015;
 const RESOLUTION = 512;
 
-/** 固定の仮光源からモデルの輪郭を地面へ投影する。写真の光源推定は行わない。 */
+/** 全設備共通の仮光源からモデルの輪郭を地面へ投影する。写真の光源推定は行わない。 */
 export class GroundShadow extends THREE.Mesh<
   THREE.PlaneGeometry,
   THREE.MeshBasicMaterial
@@ -34,8 +52,12 @@ export class GroundShadow extends THREE.Mesh<
     this.visible = false;
   }
 
-  updateFor(object: THREE.Object3D, signature: string) {
-    // 移動・倍率・カメラは親グループと一緒に反映されるので、輪郭の再計算は不要。
+  updateFor(
+    object: THREE.Object3D,
+    signature: string,
+    light: THREE.Vector3 = new THREE.Vector3(...KEY_LIGHT_POSITION),
+  ) {
+    // 移動・倍率は親グループと一緒に反映。回転と光源変更時は再計算する。
     if (signature === this.signature) return;
     object.updateWorldMatrix(true, true);
     const parentInverse = object.parent
@@ -61,9 +83,9 @@ export class GroundShadow extends THREE.Mesh<
         point.fromBufferAttribute(positions, i).applyMatrix4(matrix);
         const height = Math.max(0, point.y - FLOOR_Y);
         const x =
-          point.x - (height * KEY_LIGHT_POSITION[0]) / KEY_LIGHT_POSITION[1];
+          point.x - (height * light.x) / light.y;
         const z =
-          point.z - (height * KEY_LIGHT_POSITION[2]) / KEY_LIGHT_POSITION[1];
+          point.z - (height * light.z) / light.y;
         projected[i * 2] = x;
         projected[i * 2 + 1] = z;
         minX = Math.min(minX, x);
