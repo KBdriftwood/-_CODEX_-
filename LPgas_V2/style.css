@@ -158,7 +158,10 @@ button[aria-pressed="true"],
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
-  color: var(--ink-strong);
+  color: var(--equipment-stroke, var(--ink-strong));
+  background: var(--equipment-fill, transparent);
+  border: 1px solid var(--equipment-stroke, var(--line));
+  border-radius: 3px;
 }
 
 .palette-btn .label {

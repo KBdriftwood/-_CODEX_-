@@ -165,7 +165,10 @@ button[aria-pressed="true"],
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
-  color: var(--ink-strong);
+  color: var(--equipment-stroke, var(--ink-strong));
+  background: var(--equipment-fill, transparent);
+  border: 1px solid var(--equipment-stroke, var(--line));
+  border-radius: 3px;
 }
 
 .palette-btn .label {
@@ -4214,7 +4217,19 @@ function createPlanPdf(canvas) {
     setMessage("アフターを作成しました。ここから削除・追加できます。ビフォアへ追加した設備は自動で追記されます。");
   }
 
+  function updatePaletteColors() {
+    const tone = project.activePage === PAGE_AFTER ? "emphasis" : "muted";
+    paletteEl.querySelectorAll(".palette-btn").forEach((button) => {
+      const def = equipmentTypeOf(button.dataset.type);
+      const fill = emphasisFill(def.fill, tone, def.type);
+      // Match the unselected canvas equipment, including its opacity on white.
+      button.style.setProperty("--equipment-fill", tone === "muted" ? mixHexWithWhite(fill, 0.1) : fill);
+      button.style.setProperty("--equipment-stroke", emphasisStroke(def.stroke, tone, false, def.type));
+    });
+  }
+
   function updatePageChrome() {
+    updatePaletteColors();
     const hasAfter = hasAfterPage(project);
     const compare = isCompareMode();
     document.getElementById("pageBefore").setAttribute("aria-pressed", project.activePage === PAGE_BEFORE ? "true" : "false");
