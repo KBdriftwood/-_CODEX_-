@@ -211,31 +211,16 @@ export const PhotoWorkspace = forwardRef<WorkspaceHandle, Props>(
       event.currentTarget.focus({ preventScroll: true });
       event.currentTarget.setPointerCapture(event.pointerId);
       const rect = event.currentTarget.getBoundingClientRect();
-      const picked =
-        mode !== "camera"
-          ? sceneRef.current.pick(
-              (event.clientX - rect.x) / rect.width,
-              (event.clientY - rect.y) / rect.height,
-            )
-          : null;
+      const picked = sceneRef.current.pick(
+        (event.clientX - rect.x) / rect.width,
+        (event.clientY - rect.y) / rect.height,
+      );
       const pickedItem = items?.find((item) => item.id === picked);
       if (picked) onSelect?.(picked);
       drag.current = {
         x: event.clientX,
         y: event.clientY,
-        state: {
-          ...state,
-          ...(pickedItem
-            ? {
-                x: pickedItem.state.x,
-                y: pickedItem.state.y,
-                size: pickedItem.state.size,
-                yaw: pickedItem.state.yaw,
-                pitch: pickedItem.state.pitch,
-                roll: pickedItem.state.roll,
-              }
-            : {}),
-        },
+        state: pickedItem?.state ?? state,
         mode,
         width: rect.width,
         height: rect.height,

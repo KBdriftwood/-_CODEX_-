@@ -24,7 +24,6 @@ import {
   type Photo,
 } from "./lib/photo";
 import {
-  CAMERA_KEYS,
   DEFAULT_STATE,
   newEquipment,
   updateValue,
@@ -41,16 +40,8 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(
     () => items[0].id,
   );
-  const [camera, setCamera] = useState({
-    azimuth: DEFAULT_STATE.azimuth,
-    elevation: DEFAULT_STATE.elevation,
-    fov: DEFAULT_STATE.fov,
-  });
   const selected = items.find((item) => item.id === selectedId);
-  const state: EditorState = {
-    ...(selected?.state ?? DEFAULT_STATE),
-    ...camera,
-  };
+  const state: EditorState = selected?.state ?? { ...DEFAULT_STATE };
   const [shadowDirection, setShadowDirection] = useState(0);
   const [mode, setMode] = useState<Mode>("move");
   const [original, setOriginal] = useState<Photo | null>(null);
@@ -172,24 +163,11 @@ export default function App() {
       previous.map((item) => (item.id === id ? { ...item, ...value } : item)),
     );
   const onChange = (key: keyof EditorState, value: number) => {
-    if ((CAMERA_KEYS as readonly string[]).includes(key)) {
-      const next = updateValue(state, key, value);
-      setCamera({
-        azimuth: next.azimuth,
-        elevation: next.elevation,
-        fov: next.fov,
-      });
-    } else if (selected)
+    if (selected)
       patch(selected.id, { state: updateValue(selected.state, key, value) });
   };
   const onState = (next: EditorState, id = selectedId ?? undefined) => {
-    if (mode === "camera")
-      setCamera({
-        azimuth: next.azimuth,
-        elevation: next.elevation,
-        fov: next.fov,
-      });
-    else if (id) patch(id, { state: next });
+    if (id) patch(id, { state: next });
   };
   const add = (modelId: string) => {
     if (items.length >= 50) {
@@ -230,11 +208,6 @@ export default function App() {
         state: newEquipment(item.modelId, index).state,
       })),
     );
-    setCamera({
-      azimuth: DEFAULT_STATE.azimuth,
-      elevation: DEFAULT_STATE.elevation,
-      fov: DEFAULT_STATE.fov,
-    });
     setMode("move");
     notify("設備とカメラを初期状態に戻しました。背景写真はそのままです。");
   };

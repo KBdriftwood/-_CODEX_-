@@ -30,6 +30,7 @@ export class EquipmentScene {
       object: THREE.Group;
       item: PlacedEquipment;
       shadow: GroundShadow;
+      camera: THREE.PerspectiveCamera;
     }
   >();
   private itemRevision = 0;
@@ -97,7 +98,10 @@ export class EquipmentScene {
           const root = new THREE.Group();
           const shadow = new GroundShadow();
           root.add(shadow, object);
-          return { key, root, object, item, shadow, fresh: true };
+          return {
+            key, root, object, item, shadow,
+            camera: this.camera.clone(), fresh: true,
+          };
         }),
       );
       if (this.disposed || revision !== this.itemRevision) {
@@ -133,20 +137,11 @@ export class EquipmentScene {
   pick(x: number, y: number) {
     const ray = new THREE.Raycaster();
     this.scene.updateMatrixWorld(true);
-    ray.setFromCamera(new THREE.Vector2(x * 2 - 1, 1 - y * 2), this.camera);
-    const hit = ray.intersectObjects(
-      [...this.nodes.values()]
-        .filter((node) => node.item.visible)
-        .map((node) => node.object),
-      true,
-    )[0];
-    if (!hit) return null;
-    for (const node of this.nodes.values()) {
-      let parent: THREE.Object3D | null = hit.object;
-      while (parent) {
-        if (parent === node.object) return node.item.id;
-        parent = parent.parent;
-      }
+    // 画面上の重なりは描画順。手前に描いた設備から、各設備のカメラで選択する。
+    for (const node of [...this.nodes.values()].reverse()) {
+      if (!node.item.visible) continue;
+      ray.setFromCamera(new THREE.Vector2(x * 2 - 1, 1 - y * 2), node.camera);
+      if (ray.intersectObject(node.object, true).length) return node.item.id;
     }
     return null;
   }
@@ -163,6 +158,24 @@ export class EquipmentScene {
     this.update(this.state);
   }
 
+  private configureCamera(camera: THREE.PerspectiveCamera, state: EditorState) {
+    const radians = THREE.MathUtils.degToRad;
+    const visibleHeight = 6.6;
+    const distance = visibleHeight / (2 * Math.tan(radians(state.fov) / 2));
+    const azimuth = radians(state.azimuth);
+    const elevation = radians(state.elevation);
+    camera.fov = state.fov;
+    camera.aspect = this.aspect;
+    camera.position.set(
+      distance * Math.cos(elevation) * Math.sin(azimuth),
+      distance * Math.sin(elevation),
+      distance * Math.cos(elevation) * Math.cos(azimuth),
+    );
+    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld();
+  }
+
   update(state: EditorState) {
     if (this.disposed) return;
     this.state = state;
@@ -176,19 +189,7 @@ export class EquipmentScene {
     const radians = THREE.MathUtils.degToRad;
     // 画角変更時に距離を補正し、表示サイズと遠近感を別々に調整する。
     const visibleHeight = 6.6;
-    const distance = visibleHeight / (2 * Math.tan(radians(state.fov) / 2));
-    const azimuth = radians(state.azimuth);
-    const elevation = radians(state.elevation);
-    this.camera.fov = state.fov;
-    this.camera.aspect = this.aspect;
-    this.camera.position.set(
-      distance * Math.cos(elevation) * Math.sin(azimuth),
-      distance * Math.sin(elevation),
-      distance * Math.cos(elevation) * Math.cos(azimuth),
-    );
-    this.camera.lookAt(0, 0, 0);
-    this.camera.updateProjectionMatrix();
-    this.camera.updateMatrixWorld();
+    this.configureCamera(this.camera, state);
     const right = new THREE.Vector3().setFromMatrixColumn(
       this.camera.matrixWorld,
       0,
@@ -220,12 +221,16 @@ export class EquipmentScene {
     if (this.multiple)
       for (const node of this.nodes.values()) {
         const value = node.item.state;
+        this.configureCamera(node.camera, value);
+        const itemLight = shadowLightPosition(
+          this.shadowDirection, value.azimuth, value.elevation,
+        );
         const horizontal = new THREE.Vector3().setFromMatrixColumn(
-          this.camera.matrixWorld,
+          node.camera.matrixWorld,
           0,
         );
         const vertical = new THREE.Vector3().setFromMatrixColumn(
-          this.camera.matrixWorld,
+          node.camera.matrixWorld,
           1,
         );
         node.root.position
@@ -245,15 +250,40 @@ export class EquipmentScene {
         );
         node.shadow.updateFor(
           node.object,
-          `${value.pitch}:${value.yaw}:${value.roll}:${lightSignature}`,
-          light,
+          `${value.pitch}:${value.yaw}:${value.roll}:${this.shadowDirection}:${value.azimuth}:${value.elevation < 0}`,
+          itemLight,
         );
       }
     this.render();
   }
 
   render() {
-    if (!this.disposed) this.renderer.render(this.scene, this.camera);
+    if (this.disposed) return;
+    if (!this.multiple) {
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
+    // 各設備を個別のカメラで同じ透明キャンバスへ重ねる。
+    // 深度はカメラ間で共有できないため、設備ごとに消去する。
+    const autoClear = this.renderer.autoClear;
+    this.renderer.autoClear = false;
+    try {
+      this.renderer.clear();
+      for (const node of this.nodes.values()) node.root.visible = false;
+      for (const node of this.nodes.values()) {
+        if (!node.item.visible) continue;
+        node.root.visible = true;
+        this.keyLight.position.copy(shadowLightPosition(
+          this.shadowDirection, node.item.state.azimuth, node.item.state.elevation,
+        ));
+        this.renderer.clearDepth();
+        this.renderer.render(this.scene, node.camera);
+        node.root.visible = false;
+      }
+    } finally {
+      for (const node of this.nodes.values()) node.root.visible = node.item.visible;
+      this.renderer.autoClear = autoClear;
+    }
   }
 
   capture(width: number, height: number) {

@@ -27,7 +27,7 @@ export const MODES = [
     id: "camera",
     name: "カメラ",
     icon: ScanEye,
-    instruction: "ドラッグして設備を見る角度を調整。背景写真は固定されます",
+    instruction: "ドラッグして選択した設備を見る角度を調整",
   },
 ] as const;
 
@@ -98,7 +98,7 @@ export function ControlPanel({
           ))}
         </div>
         <fieldset
-          disabled={!selected && mode !== "camera"}
+          disabled={!selected}
           className="mode-fields"
           aria-label={`${MODES.find((item) => item.id === mode)!.name}の設定`}
         >
@@ -131,7 +131,7 @@ export function ControlPanel({
                 "強い・広角",
               ])}
               <p className="field-note">
-                配置した全設備を見るカメラを共通で調整します。遠近感を変えても、足元の位置を保ちます。
+                選択した設備だけの見る角度・遠近感を調整します。他の設備と足元の位置は変わりません。
               </p>
             </>
           )}
