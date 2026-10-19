@@ -214,6 +214,8 @@ button[aria-pressed="true"],
 }
 
 .hud-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 214px;
   top: 8px;
   left: 8px;
   right: 8px;
@@ -225,6 +227,7 @@ button[aria-pressed="true"],
 
 .hud-top-main {
   display: flex;
+  flex-direction: column;
   flex-wrap: wrap;
   gap: 8px;
   align-items: flex-start;
@@ -233,6 +236,8 @@ button[aria-pressed="true"],
 }
 
 .hud-edit-tools {
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -241,6 +246,9 @@ button[aria-pressed="true"],
 }
 
 .file-tools {
+  width: 100%;
+  min-width: 0;
+  justify-self: end;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -250,13 +258,35 @@ button[aria-pressed="true"],
 }
 
 .file-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 5px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.35fr 1fr;
+  width: 100%;
+  gap: 4px;
+}
+
+.hud-top .hud-btn {
+  min-height: 28px;
+  padding: 3px 6px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.hud-top .hud-btn.compact {
+  min-width: 28px;
+}
+
+.hud-top .hud-cluster {
+  min-width: 0;
+  max-width: 100%;
+  gap: 4px;
+}
+
+.file-buttons .hud-btn {
+  padding-inline: 2px;
 }
 
 .sheet-info {
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -264,7 +294,7 @@ button[aria-pressed="true"],
 
 .sheet-info label {
   display: grid;
-  grid-template-columns: 3.6em 148px;
+  grid-template-columns: 3.6em minmax(0, 1fr);
   align-items: center;
   gap: 4px;
   color: var(--ink-strong);
@@ -822,7 +852,8 @@ button[aria-pressed="true"],
   }
 
   .hud-top {
-    justify-content: flex-start;
+    grid-template-columns: minmax(0, 1fr) 190px;
+    gap: 6px;
   }
 
   .status-chip {
