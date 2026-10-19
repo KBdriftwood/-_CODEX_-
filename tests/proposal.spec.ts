@@ -245,6 +245,8 @@ for (const orientation of ["portrait", "landscape"] as const) {
     await upload(page, "加工済み写真ファイル", "#338866", "加工済み.png");
     await expect(page.locator(".file-name")).toHaveText("加工済み.png");
     await page.getByRole("button", { name: "2 比較・提案書" }).click();
+    await expect(page.getByLabel("提案書の題名", { exact: true })).toHaveValue("LPガス設備 Before After");
+    await expect(page.getByLabel("会社名・担当者", { exact: true })).toHaveValue("ニイミ産業");
     await page.getByLabel("お客様名", { exact: true }).fill("株式会社テスト");
     await page.getByLabel("現場名", { exact: true }).fill("東京工場");
     await page
@@ -275,7 +277,7 @@ for (const orientation of ["portrait", "landscape"] as const) {
     expect(download.suggestedFilename()).toBe("株式会社テスト_切替提案書.pdf");
     const pdf = await PDFDocument.load(bytes);
     expect(pdf.getPageCount()).toBe(1);
-    expect(pdf.getTitle()).toBe("LPガス設備 切替ご提案");
+    expect(pdf.getTitle()).toBe("LPガス設備 Before After");
     const first = pdf.getPage(0);
     expect(first.getWidth()).toBeCloseTo(
       orientation === "portrait" ? 595.28 : 841.89,

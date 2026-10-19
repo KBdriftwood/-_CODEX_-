@@ -38,11 +38,11 @@ export function todayInJapan() {
 }
 
 export const initialMetadata = (): ProposalMetadata => ({
-  title: "LPガス設備 切替ご提案",
+  title: "LPガス設備 Before After",
   customer: "",
   site: "",
   date: todayInJapan(),
-  sender: "",
+  sender: "ニイミ産業",
   note: "",
 });
 
@@ -91,7 +91,7 @@ export function drawComparison(
   ctx.font = `700 58px ${font}`;
   ctx.textBaseline = "top";
   ctx.fillText(
-    metadata.title || "LPガス設備 切替ご提案",
+    metadata.title || "LPガス設備 Before After",
     margin + 35,
     91,
     w - margin * 2 - 50,
@@ -210,7 +210,7 @@ export async function createProposalPdf(
   if (!parts.length)
     throw new Error("保存するページを1つ以上追加してください。");
   const output = await PDFDocument.create();
-  output.setTitle(metadata.title || "LPガス設備 切替ご提案");
+  output.setTitle(metadata.title || "LPガス設備 Before After");
   output.setAuthor(metadata.sender || "LP VISION");
   for (const part of parts) {
     if (part.kind === "comparison") {
