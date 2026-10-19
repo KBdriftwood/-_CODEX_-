@@ -222,7 +222,7 @@ button[aria-pressed="true"],
 
 .hud-top {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 214px;
+  grid-template-columns: minmax(0, 1fr) 74px 214px;
   top: 8px;
   left: 8px;
   right: 8px;
@@ -234,7 +234,6 @@ button[aria-pressed="true"],
 
 .hud-top-main {
   display: flex;
-  flex-direction: column;
   flex-wrap: wrap;
   gap: 8px;
   align-items: flex-start;
@@ -243,19 +242,24 @@ button[aria-pressed="true"],
 }
 
 .hud-edit-tools {
-  min-width: 0;
+  display: contents;
+}
+
+.hud-top .hud-btn {
+  padding-inline: 8px;
+}
+
+.hud-top .hud-cluster {
+  gap: 4px;
   max-width: 100%;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: flex-start;
-  justify-content: flex-start;
+}
+
+.hud-top > .view-nudge {
+  margin-top: 0;
 }
 
 .file-tools {
-  width: 100%;
-  min-width: 0;
-  justify-self: end;
+  width: 214px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -265,35 +269,13 @@ button[aria-pressed="true"],
 }
 
 .file-buttons {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1.35fr 1fr;
-  width: 100%;
-  gap: 4px;
-}
-
-.hud-top .hud-btn {
-  min-height: 28px;
-  padding: 3px 6px;
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.hud-top .hud-btn.compact {
-  min-width: 28px;
-}
-
-.hud-top .hud-cluster {
-  min-width: 0;
-  max-width: 100%;
-  gap: 4px;
-}
-
-.file-buttons .hud-btn {
-  padding-inline: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
 }
 
 .sheet-info {
-  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -301,7 +283,7 @@ button[aria-pressed="true"],
 
 .sheet-info label {
   display: grid;
-  grid-template-columns: 3.6em minmax(0, 1fr);
+  grid-template-columns: 3.6em 148px;
   align-items: center;
   gap: 4px;
   color: var(--ink-strong);
@@ -859,7 +841,7 @@ button[aria-pressed="true"],
   }
 
   .hud-top {
-    grid-template-columns: minmax(0, 1fr) 190px;
+    grid-template-columns: minmax(0, 1fr) 74px 214px;
     gap: 6px;
   }
 
@@ -922,6 +904,9 @@ button[aria-pressed="true"],
               <button type="button" id="fitButton" class="hud-btn" title="全体表示">全体</button>
               <button type="button" id="zoomInButton" class="hud-btn" title="拡大">拡大</button>
             </div>
+
+          </div>
+        </div>
             <div class="hud-cluster view-nudge" id="viewPanTools" aria-label="表示位置">
               <button type="button" id="panUp" class="hud-btn compact" title="表示を上へ" aria-label="表示を上へ">↑</button>
               <div class="nudge-row">
@@ -930,8 +915,6 @@ button[aria-pressed="true"],
               </div>
               <button type="button" id="panDown" class="hud-btn compact" title="表示を下へ" aria-label="表示を下へ">↓</button>
             </div>
-          </div>
-        </div>
         <div class="file-tools" aria-label="図面情報とファイル操作">
           <div class="sheet-info">
             <label>日付
