@@ -4282,9 +4282,7 @@ let st=new Wr(small);st.colorSpace=`srgb`;st.needsUpdate=!0;let tag=new Qa(new o
 const group=new wi;
 const mint=new ms({color:'#93c98b',metalness:.17,roughness:.32});
 const edge=new ms({color:'#6aa464',metalness:.26,roughness:.38});
-const steel=new ms({color:'#c5cbcc',metalness:.65,roughness:.32});
 const dark=new ms({color:'#576c79',metalness:.55,roughness:.4});
-const brass=new ms({color:'#ba9c5b',metalness:.6,roughness:.4});
 function mesh(geometry,material,x=0,y=0,z=0,parent=group){
  const part=new Qa(geometry,material);part.position.set(x,y,z);parent.add(part);return part;
 }
@@ -4295,28 +4293,10 @@ for(const x of [-1.4,1.4]){
  const head=mesh(new ss(.8,64,32),mint,x,1.22,0);head.scale.x=.56;
  const seam=mesh(new cs(.802,.018,8,72),edge,x,1.22,0);seam.rotation.y=Math.PI/2;
 }
-// Two curved saddles on a matching green skid, with metal anchor plates.
-for(const z of [-.73,.73])box(2.9,.15,.14,edge,0,.11,z);
-for(const x of [-1,1]){
- box(.22,.15,1.6,edge,x,.11,0);
- for(const z of [-.48,.48])box(.22,.43,.18,edge,x,.39,z);
- const saddle=mesh(new cs(.815,.055,12,64,Math.PI),edge,x,1.22,0);
- saddle.rotation.set(0,Math.PI/2,Math.PI);
- box(.32,.12,1.12,edge,x,.48,0);
- for(const z of [-.73,.73]){
-  box(.34,.035,.28,steel,x,.025,z);
-  mesh(new es(.035,.035,.065,12),steel,x,.065,z);
- }
+// Four short legs extend directly from the underside; no saddles or skid frame.
+for(const x of [-1,1])for(const z of [-.43,.43]){
+ box(.18,.60,.18,edge,x,.30,z);
 }
-// Compact fittings above the vessel; no photographic dimensions are implied.
-mesh(new es(.18,.18,.05,32),steel,-.35,2.035,0);
-mesh(new es(.055,.055,.16,20),brass,-.35,2.13,0);
-const wheel=mesh(new cs(.105,.018,8,32),dark,-.35,2.22,0);wheel.rotation.x=Math.PI/2;
-box(.21,.018,.018,dark,-.35,2.22,0);
-mesh(new es(.04,.04,.13,16),brass,.26,2.10,0);
-const gauge=mesh(new es(.095,.095,.055,32),dark,.26,2.20,.025);gauge.rotation.x=Math.PI/2;
-mesh(new $o(.078,32),new ms({color:'#f8faf7',roughness:.8}),.26,2.20,.055);
-const needle=box(.008,.055,.004,dark,.27,2.21,.058);needle.rotation.z=-.5;
 // Approved solid-red mark and upright lettering, embedded in this HTML.
 const mark=new Path2D('M 110 100 H 1100 L 775 620 L 1030 800 H 100 L 385 280 Z');
 function drawMark(ctx,left,top,width){
@@ -4337,7 +4317,7 @@ for(let index=0;index<positions.count;index++){
 labelGeometry.computeVertexNormals();
 mesh(labelGeometry,new ms({map:texture,transparent:true,roughness:.75,metalness:0,depthWrite:false}));
 // Two-section end cabinet, painted the same green and facing outward on one side only.
-const cabinet=new wi;cabinet.position.set(1.94,1.19,0);cabinet.rotation.y=Math.PI/2;group.add(cabinet);
+const cabinet=new wi;cabinet.position.set(1.87,1.19,0);cabinet.rotation.y=Math.PI/2;cabinet.scale.setScalar(.5);group.add(cabinet);
 box(.62,1.12,.29,mint,0,0,0,cabinet);
 box(.61,1.10,.018,mint,0,0,.146,cabinet);
 box(.60,.012,.02,dark,0,-.12,.157,cabinet);
