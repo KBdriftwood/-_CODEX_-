@@ -5,6 +5,7 @@ export interface PlacedEquipment {
   modelId: string;
   state: EditorState;
   visible: boolean;
+  autoBrightness?: boolean;
   length: number;
   pipeShape: "straight" | "elbow" | "u";
 }
@@ -20,6 +21,7 @@ export function newEquipment(
     modelId,
     state: { ...DEFAULT_STATE, x: 54 + (index % 4) * 3, y: 75 },
     visible: true,
+    autoBrightness: true,
     length: 2.5,
     pipeShape: "straight",
   };
@@ -35,6 +37,7 @@ export interface EditorState {
   azimuth: number;
   elevation: number;
   fov: number;
+  brightness: number;
 }
 
 export const DEFAULT_STATE: Readonly<EditorState> = {
@@ -47,6 +50,7 @@ export const DEFAULT_STATE: Readonly<EditorState> = {
   azimuth: 28,
   elevation: 14,
   fov: 38,
+  brightness: 100,
 };
 
 export const limits: Record<keyof EditorState, [number, number]> = {
@@ -59,6 +63,7 @@ export const limits: Record<keyof EditorState, [number, number]> = {
   azimuth: [-180, 180],
   elevation: [-10, 75],
   fov: [20, 80],
+  brightness: [50, 150],
 };
 
 export function clamp(value: number, min: number, max: number) {

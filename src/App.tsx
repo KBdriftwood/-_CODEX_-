@@ -206,6 +206,7 @@ export default function App() {
       previous.map((item, index) => ({
         ...item,
         state: newEquipment(item.modelId, index).state,
+        autoBrightness: true,
       })),
     );
     setMode("move");
@@ -415,6 +416,12 @@ export default function App() {
               onShadowDirection={() => setShadowDirection((value) => (value + 1) % 4)}
               onChange={onChange}
               selected={!!selected}
+              autoBrightness={selected?.autoBrightness !== false}
+              onAutoBrightness={(enabled) => selected && patch(selected.id, { autoBrightness: enabled })}
+              onResetBrightness={() => selected && patch(selected.id, {
+                autoBrightness: false,
+                state: { ...selected.state, brightness: 100 },
+              })}
               library={
                 <EquipmentLibrary
                   items={items}

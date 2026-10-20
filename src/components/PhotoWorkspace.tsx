@@ -3,6 +3,7 @@ import {
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -17,6 +18,7 @@ import {
   ScanEye,
   Upload,
 } from "lucide-react";
+import { brightnessSampler } from "../lib/brightness";
 import type { Photo } from "../lib/photo";
 import { composeImage, exportPng } from "../export/exportPng";
 import { EquipmentScene } from "../scene/EquipmentScene";
@@ -68,6 +70,12 @@ export const PhotoWorkspace = forwardRef<WorkspaceHandle, Props>(
     },
     ref,
   ) {
+    const sampleBrightness = useMemo(() => brightnessSampler(photo), [photo]);
+    const adjustedItems = useMemo(() => items?.map(item => ({
+      ...item,
+      state: { ...item.state, brightness: (item.state.brightness ?? 100) *
+        (item.autoBrightness !== false ? sampleBrightness(item.state.x, item.state.y) : 1) },
+    })), [items, sampleBrightness]);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const areaRef = useRef<HTMLDivElement>(null);
     const sceneRef = useRef<EquipmentScene | null>(null);
@@ -162,11 +170,11 @@ export const PhotoWorkspace = forwardRef<WorkspaceHandle, Props>(
       sceneRef.current?.update(state);
     }, [state]);
     useEffect(() => {
-      if (!items || !sceneRef.current) return;
+      if (!adjustedItems || !sceneRef.current) return;
       let active = true;
       callbacks.current.onReady(false);
       sceneRef.current
-        .setItems(items)
+        .setItems(adjustedItems)
         .then(() => {
           if (active && !failed.current) callbacks.current.onReady(true);
         })
@@ -176,7 +184,7 @@ export const PhotoWorkspace = forwardRef<WorkspaceHandle, Props>(
       return () => {
         active = false;
       };
-    }, [items]);
+    }, [adjustedItems]);
     useImperativeHandle(
       ref,
       () => ({

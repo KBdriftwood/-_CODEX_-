@@ -260,6 +260,7 @@ export class EquipmentScene {
   render() {
     if (this.disposed) return;
     if (!this.multiple) {
+      this.renderer.toneMappingExposure = 1.05 * (this.state.brightness ?? 100) / 100;
       this.renderer.render(this.scene, this.camera);
       return;
     }
@@ -276,6 +277,7 @@ export class EquipmentScene {
         this.keyLight.position.copy(shadowLightPosition(
           this.shadowDirection, node.item.state.azimuth, node.item.state.elevation,
         ));
+        this.renderer.toneMappingExposure = 1.05 * (node.item.state.brightness ?? 100) / 100;
         this.renderer.clearDepth();
         this.renderer.render(this.scene, node.camera);
         node.root.visible = false;

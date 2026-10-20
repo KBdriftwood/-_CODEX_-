@@ -40,6 +40,9 @@ interface Props {
   selected?: boolean;
   shadowDirection?: number;
   onShadowDirection?: () => void;
+  autoBrightness?: boolean;
+  onAutoBrightness?: (enabled: boolean) => void;
+  onResetBrightness?: () => void;
 }
 
 export function ControlPanel({
@@ -51,6 +54,9 @@ export function ControlPanel({
   selected = true,
   shadowDirection = 0,
   onShadowDirection,
+  autoBrightness = true,
+  onAutoBrightness,
+  onResetBrightness,
 }: Props) {
   const adjustment = (
     field: keyof EditorState,
@@ -144,6 +150,14 @@ export function ControlPanel({
           <span className="small-pill">表示倍率</span>
         </div>
         {adjustment("size", "表示倍率", "%", ["小さく", "大きく"])}
+      </fieldset>
+      <fieldset className="panel-section" disabled={!selected}>
+        <div className="section-heading"><h2>設備の明るさ</h2></div>
+        <label><input type="checkbox" checked={autoBrightness}
+          onChange={(event) => onAutoBrightness?.(event.target.checked)} /> 背景に合わせて自動補正</label>
+        {adjustment("brightness", "明るさの微調整", "%", ["暗く", "明るく"])}
+        <button className="button" onClick={onResetBrightness}>明るさを元に戻す</button>
+        <p className="field-note">選択した設備だけに反映します。自動補正は移動先の背景に控えめに合わせます。100%は補正後の基準です。元に戻すと自動補正も解除します。</p>
       </fieldset>
       <div className="panel-footnote">
         <CircleHelp size={16} />
