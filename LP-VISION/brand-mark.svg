@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900">
+  <title>バルク用ロゴの赤いマーク</title>
+  <desc>承認済みの輪郭を赤く塗りつぶしたマーク。上下の辺は水平。</desc>
+  <path d="M 110 100 H 1100 L 775 620 L 1030 800 H 100 L 385 280 Z" fill="#e60012" />
+</svg>
