@@ -4273,7 +4273,9 @@ ctx.font=`italic bold 84px Arial, sans-serif`;ctx.fillText(`Niimi Sangyo`,128,15
 ctx.fillStyle=`#163db3`;ctx.font=`italic bold 93px Arial, sans-serif`;ctx.fillText(`NewBulk`,277,264);
 let texture=new Wr(canvas);texture.colorSpace=`srgb`;texture.needsUpdate=!0;
 // Place the lettering directly on the cylindrical surface, not on a floating plane.
-let logo=new Qa(new es(.807,.807,.56,96,1,true,-0.72,1.90),new ms({map:texture,transparent:!0,roughness:.75,metalness:0,side:2,depthWrite:!1}));logo.position.set(0,2.20,0);n.add(logo);
+let logo=new Qa(new es(.807,.807,.56,96,1,true,-0.72,1.90),new ms({map:texture,transparent:!0,roughness:.75,metalness:0,side:0,depthWrite:!1}));logo.position.set(0,2.20,0);n.add(logo);
+// Repeat the approved logo on the opposite side, facing outward with upright text.
+let oppositeLogo=logo.clone();oppositeLogo.rotation.y=Math.PI;n.add(oppositeLogo);
 // Cabinet company mark, kept flush on the outward-facing cabinet panel.
 let small=document.createElement(`canvas`);small.width=512;small.height=180;let sc=small.getContext(`2d`);drawBulkMark(sc,10,20,65);sc.fillStyle=`#183cb1`;sc.font=`bold 47px sans-serif`;sc.fillText(`ニイミ産業K.K.`,12,133);
 let st=new Wr(small);st.colorSpace=`srgb`;st.needsUpdate=!0;let tag=new Qa(new os(.53,.19),new ms({map:st,transparent:!0,roughness:.75,metalness:0,depthWrite:!1}));tag.position.set(0,-.34,.159);cabinetGroup.add(tag);
@@ -4316,7 +4318,10 @@ for(let index=0;index<positions.count;index++){
  positions.setXYZ(index,positions.getX(index)-.16,vesselY+y,Math.sqrt(.807*.807-y*y));
 }
 labelGeometry.computeVertexNormals();
-mesh(labelGeometry,new ms({map:texture,transparent:true,roughness:.75,metalness:0,depthWrite:false}));
+const frontLogo=mesh(labelGeometry,new ms({map:texture,transparent:true,roughness:.75,metalness:0,depthWrite:false}));
+// Rotate the complete label to the rear so the text reads normally from outside.
+// Keep its longitudinal center aligned with the front label at x = -.16.
+const rearLogo=frontLogo.clone();rearLogo.rotation.y=Math.PI;rearLogo.position.x=-.32;group.add(rearLogo);
 // Two-section end cabinet, painted the same green and facing outward on one side only.
 const cabinet=new wi;cabinet.position.set(1.895,vesselY-.03,0);cabinet.rotation.y=Math.PI/2;cabinet.scale.set(1,.5,2/3);group.add(cabinet);
 box(.62,1.12,.29,mint,0,0,0,cabinet);
