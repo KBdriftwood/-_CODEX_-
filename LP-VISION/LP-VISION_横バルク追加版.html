@@ -194,56 +194,125 @@ function lpForegroundCanvas(photo,regions,limit){
  }
  context.clip();context.drawImage(photo.image,0,0,canvas.width,canvas.height);return canvas;
 }
+// Work in screen pixels, so magnifying the photo permits finer source-image detail.
+const lpOutlineTolerances={off:0,weak:2,standard:5,strong:9};
+function lpSimplifyOutline(points,width,height,tolerance){
+ if(points.length<=2||tolerance<=0)return points.slice();
+ const keep=new Uint8Array(points.length),stack=[[0,points.length-1]],threshold=tolerance*tolerance;keep[0]=keep[points.length-1]=1;
+ while(stack.length){
+  const [first,last]=stack.pop(),a=points[first],b=points[last],dx=(b.x-a.x)*width,dy=(b.y-a.y)*height,length=dx*dx+dy*dy;
+  let farthest=-1,maxDistance=threshold;
+  for(let index=first+1;index<last;index++){
+   const px=(points[index].x-a.x)*width,py=(points[index].y-a.y)*height,amount=length?Math.max(0,Math.min(1,(px*dx+py*dy)/length)):0,distance=(px-amount*dx)**2+(py-amount*dy)**2;
+   if(distance>maxDistance){maxDistance=distance;farthest=index;}
+  }
+  if(farthest>=0){keep[farthest]=1;stack.push([first,farthest],[farthest,last]);}
+ }
+ return points.filter((_,index)=>keep[index]);
+}
+function lpOutlineDistance(a,b,width,height){return Math.hypot((a.x-b.x)*width,(a.y-b.y)*height);}
+function lpStabilizeOutline(points,width,height,strength){
+ const radius={off:0,weak:1,standard:2,strong:3}[strength]??2;
+ if(!radius||points.length<=2)return points.slice();
+ const reach=lpOutlineTolerances[strength]*2+4;
+ return points.map((point,index)=>{
+  if(index===0||index===points.length-1)return point;
+  let x=point.x,y=point.y,count=1;
+  for(let neighbor=Math.max(0,index-radius);neighbor<=Math.min(points.length-1,index+radius);neighbor++){
+   if(neighbor===index||lpOutlineDistance(point,points[neighbor],width,height)>reach)continue;
+   x+=points[neighbor].x;y+=points[neighbor].y;count++;
+  }
+  return {x:x/count,y:y/count};
+ });
+}
+function lpOutlineStroke(active){
+ let stroke=lpSimplifyOutline(lpStabilizeOutline(active.raw,active.width,active.height,active.strength),active.width,active.height,lpOutlineTolerances[active.strength]);
+ if(active.before.length&&lpOutlineDistance(active.before.at(-1),stroke[0],active.width,active.height)<1)stroke=stroke.slice(1);
+ const points=[...active.before,...stroke];
+ // Keep both endpoints even for exceptionally long, unassisted strokes.
+ return points.length<=3000?points:Array.from({length:3000},(_,index)=>points[Math.round(index*(points.length-1)/2999)]);
+}
 function lpForegroundEditor({photo,value,onApply,onClose,onPreview}){
- const initial=lpCleanRegions(value.regions),[regions,setRegions]=S.useState(initial),[points,setPoints]=S.useState([]),[enabled,setEnabled]=S.useState(value.enabled!==false),[depth,setDepth]=S.useState(lpDepthValue(value.depth)),[zoom,setZoom]=S.useState(1),[preview,setPreview]=S.useState(null),[busy,setBusy]=S.useState(false),[error,setError]=S.useState(``),[area,setArea]=S.useState({width:800,height:580});
- const stageArea=S.useRef(null),svg=S.useRef(null),gesture=S.useRef(null),dialog=S.useRef(null),close=S.useRef(onClose),live=S.useRef(true),focusBefore=S.useRef(null);close.current=onClose;
+ const [regions,setRegions]=S.useState(()=>lpCleanRegions(value.regions)),[points,setPoints]=S.useState([]),[history,setHistory]=S.useState([]),[mode,setMode]=S.useState(value.outlineMode===`trace`?`trace`:`points`),[strength,setStrength]=S.useState(Object.hasOwn(lpOutlineTolerances,value.outlineStabilization)?value.outlineStabilization:`standard`),[enabled,setEnabled]=S.useState(value.enabled!==false),[depth,setDepth]=S.useState(lpDepthValue(value.depth)),[zoom,setZoom]=S.useState(1),[preview,setPreview]=S.useState(null),[busy,setBusy]=S.useState(false),[error,setError]=S.useState(``),[area,setArea]=S.useState({width:800,height:580});
+ const stageArea=S.useRef(null),svg=S.useRef(null),gesture=S.useRef(null),draft=S.useRef(points),dialog=S.useRef(null),close=S.useRef(onClose),live=S.useRef(true),focusBefore=S.useRef(null);close.current=onClose;draft.current=points;
  const fit=be(photo.width/photo.height,1,area.width-24,area.height-24),width=fit.width*zoom,height=fit.height*zoom;
+ const replacePoints=next=>{draft.current=next;setPoints(next);};
  S.useLayoutEffect(()=>{const observer=new ResizeObserver(([entry])=>setArea({width:entry.contentRect.width,height:entry.contentRect.height}));if(stageArea.current)observer.observe(stageArea.current);return()=>observer.disconnect();},[]);
  S.useEffect(()=>{
   live.current=true;focusBefore.current=document.activeElement;dialog.current?.focus();
   const keys=event=>{
    if(event.key===`Escape`){event.preventDefault();close.current();}
-   if(event.key===`Tab`){const elements=[...dialog.current.querySelectorAll(`button:not(:disabled),input:not(:disabled),[tabindex="0"]`)].filter(element=>element.getClientRects().length);if(!elements.length)return;const first=elements[0],last=elements.at(-1);if(event.shiftKey&&(document.activeElement===first||document.activeElement===dialog.current)){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}
+   if(event.key===`Tab`){const elements=[...dialog.current.querySelectorAll(`button:not(:disabled),input:not(:disabled),select:not(:disabled),[tabindex="0"]`)].filter(element=>element.getClientRects().length);if(!elements.length)return;const first=elements[0],last=elements.at(-1);if(event.shiftKey&&(document.activeElement===first||document.activeElement===dialog.current)){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}
   };
-  document.addEventListener(`keydown`,keys);return()=>{live.current=false;document.removeEventListener(`keydown`,keys);focusBefore.current?.focus({preventScroll:true});};
+  document.addEventListener(`keydown`,keys);return()=>{live.current=false;cancelAnimationFrame(gesture.current?.frame);gesture.current=null;document.removeEventListener(`keydown`,keys);focusBefore.current?.focus({preventScroll:true});};
  },[]);
- const config=()=>({enabled,depth,regions:lpCleanRegions(points.length>=3?[...regions,points]:regions)});
+ const config=()=>({enabled,depth,outlineMode:mode,outlineStabilization:strength,regions:lpCleanRegions(draft.current.length>=3?[...regions,draft.current]:regions)});
  const invalidate=()=>{setPreview(null);setError(``);};
- const location=event=>{const rect=svg.current.getBoundingClientRect();return {x:Math.max(0,Math.min(1,(event.clientX-rect.x)/rect.width)),y:Math.max(0,Math.min(1,(event.clientY-rect.y)/rect.height))};};
+ const location=(event,rect=svg.current.getBoundingClientRect())=>({x:Math.max(0,Math.min(1,(event.clientX-rect.x)/rect.width)),y:Math.max(0,Math.min(1,(event.clientY-rect.y)/rect.height))});
+ const add=()=>{
+  const clean=lpCleanRegions([draft.current]);if(!clean.length){setError(`輪郭を3点以上で囲んでください。`);return false;}if(regions.length>=30){setError(`残す範囲は30個までです。`);return false;}
+  invalidate();setRegions(current=>[...current,clean[0]]);replacePoints([]);setHistory([]);return true;
+ };
+ const cancel=event=>{
+  const active=gesture.current;if(!active||event&&event.pointerId!==active.id)return;
+  cancelAnimationFrame(active.frame);gesture.current=null;replacePoints(active.before);
+ };
  const down=event=>{
-  if(event.button!==0||busy||preview)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);invalidate();
-  const point=location(event),nearFirst=points.length>=3&&Math.hypot((point.x-points[0].x)*width,(point.y-points[0].y)*height)<12;
-  if(nearFirst){setRegions(current=>lpCleanRegions([...current,points]));setPoints([]);gesture.current=null;return;}
-  gesture.current={id:event.pointerId,last:point};setPoints(current=>[...current,point]);
+  if(event.button!==0||busy||preview||gesture.current)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);invalidate();
+  const before=draft.current,point=location(event),nearFirst=before.length>=3&&lpOutlineDistance(point,before[0],width,height)<=12,handle=event.target.closest(`[data-outline-point]`),index=nearFirst?0:handle?Number(handle.dataset.outlinePoint):-1;
+  if(mode===`points`&&index>=0){gesture.current={kind:`vertex`,id:event.pointerId,before,index,start:point,moved:false,canClose:nearFirst};return;}
+  if(nearFirst){gesture.current={kind:`close`,id:event.pointerId,before,start:point};return;}
+  const active={kind:mode===`trace`?`trace`:`point`,id:event.pointerId,before,raw:[point],width,height,strength};gesture.current=active;replacePoints([...before,point]);
+ };
+ const collect=(active,event,force=false)=>{
+  const point=location(event),last=active.raw.at(-1);
+  if(lpOutlineDistance(last,point,active.width,active.height)<(force ? .05 : 1))return;
+  active.raw.push(point);
+  if(active.raw.length>6000)active.raw=active.raw.filter((_,index)=>index===0||index===active.raw.length-1||index%2===0);
  };
  const move=event=>{
-  const active=gesture.current;if(!active||active.id!==event.pointerId)return;const point=location(event);
-  if(Math.hypot((point.x-active.last.x)*width,(point.y-active.last.y)*height)<3)return;
-  active.last=point;setPoints(current=>current.length<3000?[...current,point]:current);
+  const active=gesture.current;if(!active||active.id!==event.pointerId)return;
+  if(active.kind===`vertex`){
+   const point=location(event);if(!active.moved&&lpOutlineDistance(point,active.start,width,height)<8)return;active.moved=true;
+   const closed=active.index===0&&active.before.length>1&&lpOutlineDistance(active.before[0],active.before.at(-1),width,height)<.01;
+   replacePoints(active.before.map((existing,index)=>index===active.index||closed&&index===active.before.length-1?point:existing));return;
+  }
+  if(active.kind!==`trace`)return;
+  const events=event.nativeEvent.getCoalescedEvents?.()??[];
+  for(const sample of events.length?events:[event])collect(active,sample);
+  if(active.frame)return;
+  active.frame=requestAnimationFrame(()=>{active.frame=null;if(live.current&&gesture.current===active)replacePoints(lpOutlineStroke(active));});
  };
- const end=event=>{if(gesture.current?.id===event.pointerId)gesture.current=null;};
- const add=()=>{const clean=lpCleanRegions([points]);if(!clean.length){setError(`輪郭を3点以上で囲んでください。`);return;}if(regions.length>=30){setError(`残す範囲は30個までです。`);return;}invalidate();setRegions(current=>[...current,clean[0]]);setPoints([]);};
- const apply=()=>{if(points.length>=3&&regions.length>=30){setError(`残す範囲は30個までです。先に範囲を減らしてください。`);return;}if(points.length>0&&!lpCleanRegions([points]).length){setError(`編集中の輪郭を3点以上で囲むか、「編集中を消す」で消してください。`);return;}onApply(config());};
- const showPreview=async()=>{if(preview){setPreview(null);return;}if(points.length>0&&!lpCleanRegions([points]).length){setError(`輪郭を3点以上で囲んでから確認してください。`);return;}setBusy(true);setError(``);try{const image=await onPreview(config());if(live.current)setPreview(image);}catch(error){if(live.current)setError(error instanceof Error?error.message:`合成を確認できませんでした。`);}finally{if(live.current)setBusy(false);}};
- const path=region=>region.map(point=>`${point.x*1000},${point.y*1000}`).join(` `);
+ const end=event=>{
+  const active=gesture.current;if(!active||active.id!==event.pointerId)return;
+  cancelAnimationFrame(active.frame);gesture.current=null;
+  if(active.kind===`close`||active.kind===`vertex`&&active.canClose&&!active.moved){if(lpOutlineDistance(location(event),active.before[0],width,height)<=12)add();}
+  else{
+   if(active.kind===`trace`){collect(active,event,true);const next=lpOutlineStroke(active);if(next.length>=4&&lpOutlineDistance(next.at(-1),next[0],width,height)<=12)next[next.length-1]={...next[0]};replacePoints(next);}
+   if(draft.current.length!==active.before.length||draft.current.some((point,index)=>point.x!==active.before[index]?.x||point.y!==active.before[index]?.y))setHistory(current=>[...current,active.before].slice(-40));
+  }
+  if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);
+ };
+ const apply=()=>{if(draft.current.length>=3&&regions.length>=30){setError(`残す範囲は30個までです。先に範囲を減らしてください。`);return;}if(draft.current.length>0&&!lpCleanRegions([draft.current]).length){setError(`編集中の輪郭を3点以上で囲むか、「編集中を消す」で消してください。`);return;}onApply(config());};
+ const showPreview=async()=>{if(preview){setPreview(null);return;}if(draft.current.length>0&&!lpCleanRegions([draft.current]).length){setError(`輪郭を3点以上で囲んでから確認してください。`);return;}setBusy(true);setError(``);try{const image=await onPreview(config());if(live.current)setPreview(image);}catch(error){if(live.current)setError(error instanceof Error?error.message:`合成を確認できませんでした。`);}finally{if(live.current)setBusy(false);}};
+ const path=region=>region.map(point=>`${point.x*width},${point.y*height}`).join(` `);
+ const changeMode=next=>{cancel();setMode(next);};
  return W.jsxs(`div`,{ref:dialog,className:`lp-foreground-dialog`,role:`dialog`,"aria-modal":true,"aria-labelledby":`lp-foreground-title`,tabIndex:-1,children:[
-  W.jsxs(`header`,{className:`lp-foreground-header`,children:[W.jsxs(`div`,{children:[W.jsx(`h2`,{id:`lp-foreground-title`,children:`炉の輪郭・残す部分`}),W.jsx(`p`,{children:`元写真の炉や残したい部分を、クリック／タップで囲むか、ドラッグでなぞってください。`})]}),W.jsx(`button`,{type:`button`,className:`button`,onClick:onClose,children:`反映せず閉じる`})]}),
+  W.jsxs(`header`,{className:`lp-foreground-header`,children:[W.jsxs(`div`,{children:[W.jsx(`h2`,{id:`lp-foreground-title`,children:`炉の輪郭・残す部分`}),W.jsx(`p`,{children:`輪郭の角に点を置いて囲めます。「なぞる」では手ぶれ補正が働きます。`})]}),W.jsx(`button`,{type:`button`,className:`button`,onClick:onClose,children:`反映せず閉じる`})]}),
   W.jsxs(`div`,{className:`lp-foreground-layout`,children:[
    W.jsxs(`div`,{className:`lp-foreground-workspace`,children:[
     W.jsxs(`div`,{className:`lp-foreground-toolbar`,children:[W.jsx(`strong`,{children:preview?`合成プレビュー`:`輪郭の編集`}),W.jsx(`button`,{type:`button`,className:`button`,onClick:()=>setZoom(current=>Math.max(1,current-.5)),disabled:zoom<=1,children:`縮小`}),W.jsx(`button`,{type:`button`,className:`button`,onClick:()=>setZoom(current=>Math.min(4,current+.5)),disabled:zoom>=4,children:`拡大`}),W.jsx(`button`,{type:`button`,className:`button`,onClick:()=>setZoom(1),children:`全体`}),W.jsx(`span`,{children:`${Math.round(zoom*100)}%`})]}),
-    W.jsx(`div`,{ref:stageArea,className:`lp-foreground-stage-area`,children:W.jsxs(`div`,{className:`lp-foreground-stage`,style:{width,height},children:[W.jsx(`img`,{src:preview??photo.url,alt:preview?`炉を残した合成の確認`:`炉の輪郭を指定する元写真`,draggable:false}),!preview&&W.jsxs(`svg`,{ref:svg,viewBox:`0 0 1000 1000`,preserveAspectRatio:`none`,role:`application`,"aria-label":`炉の輪郭を囲む作業領域`,onPointerDown:down,onPointerMove:move,onPointerUp:end,onPointerCancel:end,onLostPointerCapture:()=>{gesture.current=null;},children:[...regions.map((region,index)=>W.jsx(`polygon`,{points:path(region),className:`lp-outline-region`},index)),points.length>0&&W.jsx(`polyline`,{points:path(points),className:`lp-outline-current`}),...points.filter((_,index)=>index===0||index===points.length-1).map((point,index)=>W.jsx(`circle`,{cx:point.x*1000,cy:point.y*1000,r:6,className:`lp-outline-point`},index))]})]})}),
-    W.jsx(`p`,{className:`lp-foreground-caption`,children:`3点以上で囲み「範囲を追加」、または最初の点を押すと輪郭が閉じます。拡大した写真はスクロールして位置を合わせられます。`})]}),
+    W.jsxs(`div`,{className:`lp-outline-assist`,children:[W.jsxs(`div`,{role:`group`,"aria-label":`輪郭の描き方`,className:`lp-outline-modes`,children:[W.jsx(`button`,{type:`button`,"aria-pressed":mode===`points`,disabled:busy||!!preview,onClick:()=>changeMode(`points`),children:`点で囲む`}),W.jsx(`button`,{type:`button`,"aria-pressed":mode===`trace`,disabled:busy||!!preview,onClick:()=>changeMode(`trace`),children:`なぞる`})]}),W.jsxs(`label`,{children:[`手ぶれ補正`,W.jsx(`select`,{"aria-label":`手ぶれ補正の強さ`,value:strength,disabled:mode!==`trace`||busy||!!preview,onChange:event=>{cancel();setStrength(event.target.value);},children:[[ `off`,`なし`],[`weak`,`弱`],[`standard`,`標準`],[`strong`,`強`]].map(([value,label])=>W.jsx(`option`,{value,children:label},value))})]})]}),
+    W.jsx(`div`,{ref:stageArea,className:`lp-foreground-stage-area`,children:W.jsxs(`div`,{className:`lp-foreground-stage`,style:{width,height},children:[W.jsx(`img`,{src:preview??photo.url,alt:preview?`炉を残した合成の確認`:`炉の輪郭を指定する元写真`,draggable:false}),!preview&&W.jsxs(`svg`,{ref:svg,viewBox:`0 0 ${width} ${height}`,preserveAspectRatio:`none`,role:`application`,"aria-label":`炉の輪郭を囲む作業領域`,onPointerDown:down,onPointerMove:move,onPointerUp:end,onPointerCancel:cancel,onLostPointerCapture:cancel,children:[...regions.map((region,index)=>W.jsx(`polygon`,{points:path(region),className:`lp-outline-region`},index)),points.length>0&&W.jsx(`polyline`,{points:path(points),className:`lp-outline-current`}),...points.flatMap((point,index)=>mode===`points`||index===0||index===points.length-1?[W.jsxs(`g`,{"data-outline-point":index,className:mode===`points`?`lp-outline-handle`:`lp-outline-trace-marker`,children:[W.jsx(`circle`,{cx:point.x*width,cy:point.y*height,r:12,className:`lp-outline-hit`}),W.jsx(`circle`,{cx:point.x*width,cy:point.y*height,r:index===0?6:4.5,className:`lp-outline-point`})]},index)]:[])]})]})}),
+    W.jsx(`p`,{className:`lp-foreground-caption`,children:mode===`points`?`角をクリック／タップすると直線でつながります。置いた点はドラッグで調整でき、最初の点を押すと閉じます。拡大すると細かく指定できます。`:`なぞる線の細かな手ぶれを抑えます。補正の強さは描く前に選べます。最初の点の近くで離すと、終点がぴったり合います。`})]}),
    W.jsxs(`aside`,{className:`lp-foreground-controls`,children:[
-    W.jsx(`h3`,{children:`残す範囲：${regions.length}個`}),
-    W.jsx(`p`,{children:`囲んだ元写真の部分を、奥のシートより手前に残します。手前のシートは、その上に重なります。`}),
+    W.jsx(`h3`,{children:`残す範囲：${regions.length}個`}),W.jsx(`p`,{children:`囲んだ元写真の部分を、奥のシートより手前に残します。手前のシートは、その上に重なります。`}),
     W.jsx(`button`,{type:`button`,className:`button`,disabled:points.length<3||busy,onClick:add,children:`囲んだ範囲を追加`}),
-    W.jsxs(`div`,{className:`lp-outline-undo`,children:[W.jsx(`button`,{type:`button`,className:`button`,disabled:!points.length||busy,onClick:()=>{invalidate();setPoints(current=>current.slice(0,-1));},children:`1点戻す`}),W.jsx(`button`,{type:`button`,className:`button`,disabled:!points.length||busy,onClick:()=>{invalidate();setPoints([]);},children:`編集中を消す`}),W.jsx(`button`,{type:`button`,className:`button`,disabled:!regions.length||busy,onClick:()=>{invalidate();setRegions(current=>current.slice(0,-1));},children:`範囲を1つ戻す`}),W.jsx(`button`,{type:`button`,className:`button`,disabled:!regions.length&&!points.length||busy,onClick:()=>{invalidate();setRegions([]);setPoints([]);},children:`全ての範囲を消す`})]}),
+    W.jsxs(`div`,{className:`lp-outline-undo`,children:[W.jsx(`button`,{type:`button`,className:`button`,disabled:!history.length||busy,onClick:()=>{cancel();invalidate();replacePoints(history.at(-1));setHistory(current=>current.slice(0,-1));},children:`1操作戻す`}),W.jsx(`button`,{type:`button`,className:`button`,disabled:!points.length||busy,onClick:()=>{cancel();invalidate();replacePoints([]);setHistory([]);},children:`編集中を消す`}),W.jsx(`button`,{type:`button`,className:`button`,disabled:!regions.length||busy,onClick:()=>{invalidate();setRegions(current=>current.slice(0,-1));},children:`範囲を1つ戻す`}),W.jsx(`button`,{type:`button`,className:`button`,disabled:!regions.length&&!points.length||busy,onClick:()=>{cancel();invalidate();setRegions([]);replacePoints([]);setHistory([]);},children:`全ての範囲を消す`})]}),
     W.jsxs(`label`,{className:`lp-outline-enabled`,children:[W.jsx(`input`,{type:`checkbox`,checked:enabled,onChange:event=>{invalidate();setEnabled(event.target.checked);}}),`囲んだ部分を表示する`]}),
     W.jsx(G,{label:`炉の前後位置`,field:`depth`,idPrefix:`foreground-`,value:depth,unit:``,ends:[`炉を奥へ`,`炉を手前へ`],onChange:(_,value)=>{invalidate();setDepth(lpDepthValue(value));}}),
-    W.jsx(`p`,{children:`炉とシートの重なりは、この前後位置でも調整できます。輪郭は写真に固定されます。`}),
-    error&&W.jsx(`p`,{role:`alert`,className:`lp-outline-error`,children:error}),
-    W.jsx(`button`,{type:`button`,className:`button`,disabled:busy,onClick:()=>void showPreview(),children:busy?`合成中…`:preview?`輪郭の編集に戻る`:`合成プレビュー`}),
-    W.jsx(`button`,{type:`button`,className:`button primary-button`,disabled:busy,onClick:apply,children:`輪郭を反映する`})]})]})]});
+    W.jsx(`p`,{children:`炉とシートの重なりは、この前後位置でも調整できます。輪郭は写真に固定されます。`}),error&&W.jsx(`p`,{role:`alert`,className:`lp-outline-error`,children:error}),
+    W.jsx(`button`,{type:`button`,className:`button`,disabled:busy,onClick:()=>void showPreview(),children:busy?`合成中…`:preview?`輪郭の編集に戻る`:`合成プレビュー`}),W.jsx(`button`,{type:`button`,className:`button primary-button`,disabled:busy,onClick:apply,children:`輪郭を反映する`})]})]})]});
 }
 
 function lpBarrierTransparency(value){return Number.isFinite(value)?Math.min(100,Math.max(0,value)):0}
@@ -4870,6 +4939,8 @@ fe=n=>{if(e.length>=50){P(`配置できる設備は50個までです。`);return
 @media(max-width:700px){.lp-dock-controls[data-tool=sheet]{gap:8px}.lp-extra-field>label{gap:5px}.lp-outline-link{font-size:9px;padding:3px;min-height:25px}.lp-foreground-header{padding:12px;align-items:flex-start}.lp-foreground-header h2{font-size:16px}.lp-foreground-header p{font-size:11px}.lp-foreground-header>.button{font-size:10px;padding:8px;white-space:normal;min-width:76px}.lp-foreground-layout{grid-template-columns:1fr;padding:10px;gap:10px;flex:0 0 auto;min-height:0}.lp-foreground-workspace{height:55dvh;min-height:330px}.lp-foreground-controls{overflow:visible;padding:14px;gap:10px}.lp-foreground-toolbar{gap:5px;padding:8px;font-size:10px}.lp-foreground-toolbar .button{padding:6px;font-size:10px}.lp-foreground-caption{font-size:10px;padding:8px}.lp-foreground-controls>.button{min-height:38px}}
 .lp-save-backdrop{position:fixed;inset:0;z-index:110;display:flex;align-items:center;justify-content:center;padding:18px;background:#102c3d99;overflow:auto}.lp-save-dialog{width:460px;max-width:100%;max-height:calc(100dvh - 36px);overflow:auto;padding:24px;background:#fff;border:1px solid #d7e3e8;border-radius:12px;box-shadow:0 12px 45px #102a403d}.lp-save-dialog h2{color:#205869;font-size:19px;margin:0 0 10px}.lp-save-dialog>p{font-size:12px;line-height:1.8;color:#6e8591;margin:0 0 18px}.lp-save-dialog form{display:grid;gap:13px}.lp-save-field{display:grid;gap:6px;font-size:12px;color:#4d6d7c}.lp-save-field input{width:100%;min-width:0;min-height:38px;padding:8px 10px;border:1px solid #cfdde5;border-radius:6px;color:#315869;font-size:14px;background:#fff}.lp-save-filename{display:grid;gap:7px;background:#edf6f6;border:1px solid #d4e7e8;border-radius:7px;padding:12px}.lp-save-filename>span{font-size:10px;color:#6c8692}.lp-save-filename>output{font-size:13px;line-height:1.7;color:#155768;overflow-wrap:anywhere}.lp-save-hint{font-size:10px;line-height:1.7;color:#81949d;margin:0}.lp-save-error{font-size:12px;line-height:1.7;color:#a74831;background:#fff2e9;border-radius:5px;padding:9px;margin:0}.lp-save-actions{display:flex;justify-content:flex-end;gap:8px}.lp-save-actions .button{font-size:12px;padding:10px 12px}
 @media(max-width:700px){.lp-save-backdrop{padding:12px}.lp-save-dialog{padding:18px;max-height:calc(100dvh - 24px)}.lp-save-dialog h2{font-size:18px}.lp-save-actions .button{font-size:11px;padding:10px}}
+.lp-outline-assist{display:flex;align-items:center;gap:12px;padding:8px 12px;background:#f5f9fa;border-top:1px solid #e5edf1;border-bottom:1px solid #dfe9ee;flex-shrink:0}.lp-outline-modes{display:flex;gap:3px;background:#e7eff2;border-radius:6px;padding:3px}.lp-outline-modes>button{border:1px solid transparent;background:transparent;border-radius:4px;padding:7px 13px;color:#647f8b;font-size:11px;white-space:nowrap;min-height:32px}.lp-outline-modes>button[aria-pressed=true]{background:#fff;color:#155768;border-color:#9fc3cc;font-weight:700}.lp-outline-assist>label{display:flex;align-items:center;gap:7px;color:#5e7c89;font-size:11px;white-space:nowrap}.lp-outline-assist select{padding:5px 8px;min-width:72px;min-height:30px;border:1px solid #cbdde5;border-radius:5px;background:#fff;color:#315f70;font-size:11px}.lp-outline-assist select:disabled{opacity:.5}.lp-outline-hit{fill:transparent;stroke:none;pointer-events:all}.lp-outline-handle{cursor:move}.lp-outline-point{pointer-events:none}
+@media(max-width:700px){.lp-outline-assist{gap:7px;padding:6px}.lp-outline-modes>button{padding:6px 9px;font-size:10px;min-height:32px}.lp-outline-assist>label{font-size:10px;gap:4px}.lp-outline-assist select{font-size:10px;min-width:63px;padding:5px}.lp-foreground-caption{min-height:44px}}
 </style>
   <script type="text/plain" id="third-party-notices">
 react
