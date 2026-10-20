@@ -2,9 +2,11 @@
 
 ## LP-VISION 保存版
 
+[LP-VISIONフォルダーを開く](LP-VISION/)
+
 ### 3D縦バルク・ロゴ水平／箱同色版
 
-[HTMLファイルをダウンロード](https://github.com/KBdriftwood/-_CODEX_-/raw/refs/heads/main/LP-VISION_3D%E7%B8%A6%E3%83%90%E3%83%AB%E3%82%AF_%E3%83%AD%E3%82%B4%E6%B0%B4%E5%B9%B3_%E7%AE%B1%E5%90%8C%E8%89%B2%E7%89%88.html?download=1)
+[HTMLファイルをダウンロード](https://github.com/KBdriftwood/-_CODEX_-/raw/refs/heads/main/LP-VISION/LP-VISION_3D%E7%B8%A6%E3%83%90%E3%83%AB%E3%82%AF_%E3%83%AD%E3%82%B4%E6%B0%B4%E5%B9%B3_%E7%AE%B1%E5%90%8C%E8%89%B2%E7%89%88.html?download=1)
 
 緑色の縦バルク本体と同色の操作箱、位置・形状を調整したロゴを含む保存版です。2026年10月20日に受け取ったHTMLを、そのまま保管しています。
 
