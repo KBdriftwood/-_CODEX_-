@@ -4627,7 +4627,68 @@ let oppositeLogo=logo.clone();oppositeLogo.rotation.y=Math.PI;n.add(oppositeLogo
 // Cabinet company mark, kept flush on the outward-facing cabinet panel.
 let small=document.createElement(`canvas`);small.width=512;small.height=180;let sc=small.getContext(`2d`);drawBulkMark(sc,10,20,65);sc.fillStyle=`#183cb1`;sc.font=`bold 47px sans-serif`;sc.fillText(`ニイミ産業K.K.`,12,133);
 let st=new Wr(small);st.colorSpace=`srgb`;st.needsUpdate=!0;let tag=new Qa(new os(.53,.19),new ms({map:st,transparent:!0,roughness:.75,metalness:0,depthWrite:!1}));tag.position.set(0,-.34,.159);cabinetGroup.add(tag);
-}else if(e===`foundation`){l(3.2,.25,2,a,0,.125,0);let e=new zo(new as(new Qo(3.2,.25,2)),new Oo({color:`#8b918c`}));e.position.y=.125,n.add(e)}else if(e===`barrier`){l(lpBarrierLength(t),2,.05,a,0,1,0)}else if(e===`vaporizer`){l(1.2,.1,.65,i,0,.05,0),l(1.1,1.35,.52,r,0,.8,0),l(.36,.65,.03,o,.25,.95,.28);for(let e of[-.35,-.12])c(new es(.075,.075,.65,16),s,e,1.15,.33),l(.14,.04,.14,i,e,1.52,.33);l(.18,.08,.04,i,.25,1.06,.31),c(new es(.025,.025,.5,12),s,-.32,.25,.31)}else if(e===`heater`){
+}else if(e===`foundation`){l(3.2,.25,2,a,0,.125,0);let e=new zo(new as(new Qo(3.2,.25,2)),new Oo({color:`#8b918c`}));e.position.y=.125,n.add(e)}else if(e===`barrier`){l(lpBarrierLength(t),2,.05,a,0,1,0)}else if(e===`vaporizer`){
+// Stylized VR: perforated silver guard, visible process vessels and braced stand.
+const shell=new ms({color:0xc5cdd1,metalness:.58,roughness:.36});
+const edge=new ms({color:0x71818d,metalness:.65,roughness:.30});
+const dark=new ms({color:0x25343d,metalness:.35,roughness:.42});
+const blue=new ms({color:0x197b9d,metalness:.28,roughness:.35});
+const white=new ms({color:0xe9f0ef,metalness:.12,roughness:.48});
+// Four feet and open stand; diagonal braces follow the side planes.
+for(const x of[-.46,.46])for(const z of[-.245,.245]){
+l(.065,.57,.065,edge,x,.305,z);l(.13,.025,.12,edge,x,.0125,z);
+}
+for(const x of[-.46,.46]){
+l(.065,.045,.61,edge,x,.05,0);
+const brace=l(.035,1,.035,edge,0,0,0);
+const start=new K(x,.075,.285),end=new K(x,.56,-.22),delta=end.clone().sub(start);
+brace.scale.y=delta.length();brace.position.copy(start.clone().add(end).multiplyScalar(.5));brace.quaternion.setFromUnitVectors(new K(0,1,0),delta.normalize());
+}
+l(.98,.045,.045,edge,0,.05,-.245);
+l(1.04,.47,.58,shell,0,.775,0);
+l(1.10,.035,.64,edge,0,1.0275,0);
+l(1.06,.025,.60,edge,0,.5325,0);
+// A restrained dark band and service panel on the back.
+l(.91,.10,.012,dark,0,.93,-.298);
+l(.91,.30,.014,shell,0,.71,-.299);
+// Front gauge: metal rim, bright face and a readable needle.
+for(const [radius,depth,material,z]of [[.061,.035,edge,.317],[.050,.008,white,.339]]){
+const gauge=c(new es(radius,radius,depth,32),material,.08,.79,z);gauge.rotation.x=Math.PI/2;
+}
+const needle=l(.006,.065,.005,dark,.09,.797,.346);needle.rotation.z=-.65;
+c(new ss(.009,12,8),dark,.08,.79,.348);
+for(const angle of[-1.05,-.52,0,.52,1.05]){const tick=l(.004,.011,.003,dark,.08+Math.sin(angle)*.040,.79+Math.cos(angle)*.040,.345);tick.rotation.z=-angle;}
+l(.14,.035,.010,edge,-.36,.94,.298);
+// Small side control box and two neat lower connections with blue handles.
+l(.10,.18,.20,edge,.567,.83,-.025);l(.012,.075,.105,dark,.623,.85,-.025);
+for(const x of[-.27,.27]){
+c(new es(.025,.025,.20,20),edge,x,.435,.04);
+c(new es(.042,.042,.055,6),edge,x,.45,.04);
+l(.065,.016,.020,blue,x+.018,.475,.075);
+c(new es(.019,.019,.22,16),shell,x,.24,.04);
+}
+// Simplified silver vessels and connecting manifold visible through the holes.
+for(const x of[-.24,.24]){
+c(new es(.105,.105,.38,32),shell,x,1.29,0);
+c(new ss(.104,24,12),shell,x,1.48,0);
+c(new es(.025,.025,.12,16),edge,x,1.53,0);
+}
+const manifold=c(new es(.025,.025,.53,20),edge,0,1.18,.13);manifold.rotation.z=Math.PI/2;
+// Actual transparent perforations on all four faces, generated offline in canvas.
+function vrGuard(width,height){
+const canvas=document.createElement('canvas'),pitch=32;canvas.width=Math.round(width/.04)*pitch;canvas.height=Math.round(height/.04)*pitch;
+const ctx=canvas.getContext('2d');ctx.fillStyle='#d8dfe1';ctx.fillRect(0,0,canvas.width,canvas.height);
+ctx.globalCompositeOperation='destination-out';
+for(let row=0,y=pitch/2;y<canvas.height;y+=pitch,row++)for(let x=pitch/2+(row%2)*pitch/2;x<canvas.width;x+=pitch){ctx.beginPath();ctx.arc(x,y,10,0,Math.PI*2);ctx.fill();}
+const texture=new Wr(canvas);texture.colorSpace='srgb';texture.needsUpdate=true;
+return new ms({map:texture,alphaTest:.5,side:2,metalness:.55,roughness:.37});
+}
+const frontGuard=vrGuard(1.08,.54),sideGuard=vrGuard(.62,.54);
+for(const z of[-.315,.315]){const panel=c(new os(1.08,.54),frontGuard,0,1.325,z);if(z<0)panel.rotation.y=Math.PI;}
+for(const x of[-.54,.54]){const panel=c(new os(.63,.54),sideGuard,x,1.325,0);panel.rotation.y=Math.PI/2;}
+for(const z of[-.32,.32])for(const y of[1.055,1.595])l(1.10,.016,.018,edge,0,y,z);
+for(const x of[-.545,.545])for(const y of[1.055,1.595])l(.018,.016,.64,edge,x,y,0);
+}else if(e===`heater`){
 // Stylized heat source: clean metal cabinet and compact H flue (18.1% of overall height).
 const silver=new ms({color:0xc5cdd2,metalness:.58,roughness:.32});
 const trim=new ms({color:0x71808b,metalness:.65,roughness:.29});
