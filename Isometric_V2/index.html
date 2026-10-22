@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>アイソメ図の作図</title>
+  <link rel="stylesheet" href="sheet.css">
+</head>
+<body>
+  <canvas id="sheet" aria-label="アイソメ方眼"></canvas>
+  <div class="toolbar">
+    <div class="draw-side">
+      <div class="tools" aria-label="作図の操作">
+        <button type="button" id="newButton">新規作成</button>
+        <button type="button" id="doubleButton" disabled>倍</button>
+        <button type="button" id="halfButton" hidden>半分</button>
+        <button type="button" id="undoButton">戻す</button>
+        <button type="button" id="redoButton">やり直す</button>
+        <button type="button" id="zoomOutButton">縮小</button>
+        <button type="button" id="zoomInButton">拡大</button>
+        <button type="button" id="fitButton">全体</button>
+        <button type="button" id="moveButton" aria-pressed="false">移動</button>
+        <button type="button" id="joinButton" disabled>つなぐ</button>
+        <button type="button" id="rangeButton" aria-pressed="false">範囲</button>
+        <button type="button" id="deleteButton" disabled>削除</button>
+      </div>
+      <label class="length-field">長さ
+        <input id="lengthInput" type="text" inputmode="decimal" disabled autocomplete="off" spellcheck="false" placeholder="mm">
+        <span id="lengthMark" hidden>基準</span>
+      </label>
+      <label class="length-field">径
+        <input id="diameterInput" type="text" inputmode="decimal" maxlength="8" disabled autocomplete="off" spellcheck="false">
+        <span class="diameter-unit">A<span id="diameterMark" hidden>修正</span></span>
+      </label>
+      <div class="length-field comment-field">
+        <button type="button" id="commentButton" aria-pressed="false">コメント</button>
+        <input id="commentInput" type="text" maxlength="40" disabled autocomplete="off" spellcheck="false" placeholder="メモ" aria-label="コメント">
+      </div>
+      <div class="symbols" aria-label="記号">
+        <button type="button" data-symbol="regulator"><b>R</b><span>調整器</span></button>
+        <button type="button" data-symbol="gauge"><b>P</b><span>圧力計</span></button>
+        <button type="button" data-symbol="valve"><svg class="valve-mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6.5 7.5 L25.5 7.5 L16 16 Z M6.5 24.5 L25.5 24.5 L16 16 Z" fill="currentColor"/></svg><span>バルブ</span></button>
+        <button type="button" data-symbol="flange"><b>‖</b><span>フランジ</span></button>
+        <button type="button" data-symbol="flex"><svg class="flex-mark" viewBox="0 0 32 18" aria-hidden="true"><path d="M1 9 C6 2 10 2 15 9 C20 16 24 16 31 9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>フレキ</span></button>
+        <button type="button" data-symbol="start"><svg class="symbol-mark" data-kind="pipe" viewBox="0 0 32 32" aria-hidden="true"><circle cx="11" cy="16" r="7" fill="#fff" stroke="currentColor" stroke-width="2"/><path d="M30 13.4 H19 V18.6 H30 Z" fill="currentColor"/><path d="M21 9 L12 16 L21 23 Z" fill="currentColor"/></svg><svg class="symbol-mark is-off" data-kind="bulk" viewBox="0 0 32 32" aria-hidden="true"><path d="M7 11 H21 A5 5 0 0 1 21 21 H7 A5 5 0 0 1 7 11 Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 21 V27 M20 21 V27" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>スタート</span></button>
+        <button type="button" data-symbol="goal"><svg class="symbol-mark" data-kind="pipe" viewBox="0 0 32 32" aria-hidden="true"><circle cx="11" cy="16" r="7" fill="#fff" stroke="currentColor" stroke-width="2"/><path d="M11 13.4 H20 V18.6 H11 Z" fill="currentColor"/><path d="M18 9 L29 16 L18 23 Z" fill="currentColor"/></svg><svg class="symbol-mark is-off" data-kind="burner" viewBox="0 0 52 36" aria-hidden="true"><circle cx="10" cy="18" r="6.5" fill="#fff" stroke="currentColor" stroke-width="2"/><path d="M10 15 H18 V21 H10 Z" fill="#fff" stroke="currentColor" stroke-width="1.7"/><path d="M18 9.6 C33 3 45 9.6 42 18 C34.5 12.6 25.5 13.2 18 17.4 Z" fill="currentColor"/><path d="M18 18.6 C33 16.2 48 22.8 42 31.2 C33 25.2 25.5 24.6 18 27 Z" fill="currentColor"/></svg><span>ゴール</span></button>
+      </div>
+    </div>
+    <div class="file-tools" aria-label="保存と印刷">
+      <div class="sheet-info">
+        <label>日付
+          <span class="date-field">
+            <input id="dateText" type="text" maxlength="10" autocomplete="off" spellcheck="false" placeholder="年/月/日">
+            <input id="dateInput" type="date" aria-label="カレンダー">
+          </span>
+        </label>
+        <label>タイトル
+          <input id="titleInput" type="text" maxlength="60" placeholder="題名" autocomplete="off" spellcheck="false">
+        </label>
+        <label>名前
+          <input id="nameInput" type="text" maxlength="40" value="ニイミ産業" autocomplete="off" spellcheck="false">
+        </label>
+      </div>
+      <div class="file-buttons">
+        <button type="button" id="openButton">開く</button>
+        <button type="button" id="saveButton">PC保存</button>
+        <button type="button" id="pdfButton">PDF保存</button>
+        <button type="button" id="printButton">印刷</button>
+      </div>
+    </div>
+  </div>
+  <input type="file" id="openFile" accept="application/json,.json" hidden>
+  <p id="status" class="status">青い交点から、1マスずつ配管を引けます</p>
+  <div class="dirs" aria-label="配管の方向">
+    <button type="button" data-dir="nw">↖<span>左</span></button>
+    <button type="button" data-dir="up">↑<span>上</span></button>
+    <button type="button" data-dir="ne">↗<span>奥</span></button>
+    <button type="button" data-dir="sw">↙<span>手前</span></button>
+    <button type="button" data-dir="down">↓<span>下</span></button>
+    <button type="button" data-dir="se">↘<span>右</span></button>
+  </div>
+  <script src="sheet.js"></script>
+</body>
+</html>
+

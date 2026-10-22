@@ -1,0 +1,493 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+  color: #1c1c1c;
+  font-family: sans-serif;
+}
+
+body {
+  height: 100dvh;
+  touch-action: none;
+}
+
+#sheet {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  z-index: 0;
+}
+
+button {
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 1px solid #7f97a8;
+  border-radius: 8px;
+  background: #fff;
+  color: #1a2832;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(20, 40, 60, 0.12);
+}
+
+button:disabled {
+  opacity: 0.42;
+  box-shadow: none;
+}
+
+.toolbar {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.draw-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: calc(100% - 220px);
+  pointer-events: none;
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.tools button {
+  background: rgba(110, 116, 122, 0.13);
+  border-color: rgba(70, 76, 82, 0.18);
+  box-shadow: none;
+}
+
+.file-tools {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex: none;
+  width: calc(4.8 * 11px + 144px);
+  pointer-events: auto;
+}
+
+.file-buttons {
+  display: grid;
+  grid-template-columns: 0.85fr 1.2fr 1.35fr 0.85fr;
+  width: 100%;
+  gap: 3px;
+}
+
+.file-buttons button {
+  min-width: 0;
+  padding: 4px 2px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.sheet-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sheet-info label {
+  display: grid;
+  grid-template-columns: 4.8em 140px;
+  align-items: center;
+  gap: 4px;
+  color: #3d5160;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  touch-action: auto;
+}
+
+.sheet-info input {
+  width: 100%;
+  height: 26px;
+  min-height: 26px;
+  padding: 2px 6px;
+  border: 1px solid rgba(70, 76, 82, 0.18);
+  border-radius: 6px;
+  background: rgba(110, 116, 122, 0.13);
+  color: #1a2832;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  touch-action: auto;
+}
+
+.date-field {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 26px;
+}
+
+.date-field input[type="text"] {
+  padding-right: 26px;
+}
+
+.date-field input[type="date"] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 28px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+}
+
+.date-field input[type="date"]::-webkit-datetime-edit,
+.date-field input[type="date"]::-webkit-inner-spin-button,
+.date-field input[type="date"]::-webkit-clear-button {
+  display: none;
+  -webkit-appearance: none;
+}
+
+.date-field input[type="date"]::-webkit-calendar-picker-indicator {
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+
+#openButton {
+  background: rgba(110, 116, 122, 0.13);
+  border-color: rgba(70, 76, 82, 0.18);
+  box-shadow: none;
+}
+
+#saveButton,
+#pdfButton,
+#printButton {
+  background: #e7f2fb;
+  border-color: #2f6794;
+  color: #12324c;
+}
+
+#moveButton.is-on {
+  background: #fff4e5;
+  border-color: #c2410c;
+  color: #9a3412;
+}
+
+#joinButton:not(:disabled) {
+  background: #e7f6ee;
+  border-color: #1f7a4d;
+  color: #145c38;
+}
+
+#rangeButton.is-on,
+#deleteButton:not(:disabled) {
+  background: #fdeceb;
+  border-color: #b42318;
+  color: #8d1c14;
+}
+
+.length-field {
+  display: grid;
+  grid-template-columns: 2.6em 72px auto;
+  align-items: center;
+  gap: 4px;
+  color: #3d5160;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: auto;
+  touch-action: auto;
+}
+
+.length-field input {
+  width: 100%;
+  height: 26px;
+  min-height: 26px;
+  padding: 2px 6px;
+  border: 1px solid rgba(70, 76, 82, 0.18);
+  border-radius: 6px;
+  background: rgba(110, 116, 122, 0.13);
+  color: #1a2832;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  touch-action: auto;
+}
+
+.length-field input:disabled {
+  opacity: 0.45;
+}
+
+#lengthMark.is-corrected {
+  color: #0b57d0;
+}
+
+#lengthMark,
+.diameter-unit {
+  color: #3d5160;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+#diameterMark {
+  margin-left: 4px;
+  color: #0b57d0;
+}
+
+.length-field input:disabled + .diameter-unit {
+  opacity: 0.45;
+}
+
+.comment-field {
+  grid-template-columns: auto 148px;
+}
+
+#commentButton {
+  height: 26px;
+  min-height: 26px;
+  padding: 2px 8px;
+  background: rgba(110, 116, 122, 0.13);
+  border-color: rgba(70, 76, 82, 0.18);
+  box-shadow: none;
+  font-size: 11px;
+  pointer-events: auto;
+}
+
+#commentButton.is-on {
+  background: #e7f2fb;
+  border-color: #2f6794;
+  color: #12324c;
+}
+
+.symbols {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.symbols button {
+  width: 62px;
+  height: 50px;
+  min-height: 50px;
+  padding: 3px 2px;
+  background: rgba(110, 116, 122, 0.13);
+  border-color: rgba(70, 76, 82, 0.18);
+  box-shadow: none;
+  touch-action: none;
+  cursor: grab;
+}
+
+.symbols button b {
+  display: block;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.symbols button .valve-mark {
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 0 auto;
+}
+
+.symbols button .flex-mark {
+  display: block;
+  width: 26px;
+  height: 15px;
+  margin: 2px auto 0;
+}
+
+.symbols button .symbol-mark {
+  display: block;
+  width: 22px;
+  height: 22px;
+  margin: 0 auto;
+}
+
+.symbols button .symbol-mark.is-off {
+  display: none;
+}
+
+.symbols button span {
+  display: block;
+  margin-top: 1px;
+  font-size: 10px;
+}
+
+.status {
+  position: fixed;
+  left: 82px;
+  bottom: 10px;
+  z-index: 2;
+  margin: 0;
+  max-width: min(280px, calc(100vw - 280px));
+  padding: 8px 10px;
+  border: 1px solid #d5e0e8;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #24343f;
+  font-size: 13px;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+.dirs {
+  position: fixed;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(3, 58px);
+  gap: 5px;
+  padding: 6px;
+  border: 1px solid rgba(90, 96, 102, 0.14);
+  border-radius: 14px;
+  background: rgba(120, 126, 132, 0.05);
+  box-shadow: none;
+}
+
+.dirs button {
+  width: 58px;
+  height: 52px;
+  min-height: 52px;
+  padding: 3px 2px;
+  background: rgba(110, 116, 122, 0.13);
+  border-color: rgba(70, 76, 82, 0.18);
+  box-shadow: none;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.dirs button span {
+  display: block;
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+@media (max-width: 420px) {
+  .toolbar {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    gap: 8px;
+  }
+
+  .draw-side {
+    max-width: calc(100% - 168px);
+  }
+
+  .file-tools {
+    width: calc(4.8 * 11px + 100px);
+  }
+
+  .sheet-info label {
+    grid-template-columns: 4.8em 96px;
+  }
+
+  .tools button,
+  .file-tools button {
+    min-height: 32px;
+    padding: 3px 6px;
+    font-size: 12px;
+  }
+
+  .dirs {
+    grid-template-columns: repeat(3, 50px);
+    right: 8px;
+    bottom: 8px;
+  }
+
+  .dirs button {
+    width: 50px;
+    height: 46px;
+    min-height: 46px;
+    font-size: 16px;
+  }
+
+  .symbols button {
+    width: 54px;
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .status {
+    left: 70px;
+    bottom: 8px;
+    max-width: calc(100vw - 290px);
+  }
+}
+
+.print-sheet {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 0;
+  }
+
+  html, body {
+    margin: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body > * {
+    display: none !important;
+  }
+
+  body > .print-sheet {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100vh;
+    page-break-inside: avoid;
+  }
+
+  .print-sheet img,
+  .print-sheet canvas {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100vh;
+    margin: auto;
+    object-fit: contain;
+    object-position: center;
+  }
+}
+
+@media (max-width: 420px) {
+  .file-tools .file-buttons button {
+    padding: 3px 0;
+    font-size: 10px;
+  }
+}
+
