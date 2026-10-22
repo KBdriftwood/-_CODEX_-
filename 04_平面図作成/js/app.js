@@ -147,7 +147,30 @@
     });
   }
 
+  function newDrawing() {
+    pushHistory();
+    const name = project.meta?.name ?? DEFAULT_SHEET_NAME;
+    project = emptyDocument();
+    project.meta.name = name;
+    bindActivePage(false);
+    activeTool = "select";
+    clipboard = null;
+    clipboardPasteCount = 0;
+    compareView.needFit = true;
+    compareView.pan = null;
+    applySheetInfoToForm();
+    fitSiteToCanvas(canvas, project.site);
+    snapshotEditView();
+    canvas.style.cursor = "grab";
+    persist();
+    refresh();
+    updateHistoryButtons();
+    updatePageChrome();
+    setMessage("新しい図面を作成できます。戻るで前の図面に戻せます。");
+  }
+
   function bindChrome() {
+    document.getElementById("newButton").addEventListener("click", newDrawing);
     document.getElementById("pageBefore").addEventListener("click", () => switchPage(PAGE_BEFORE));
     document.getElementById("pageAfter").addEventListener("click", () => {
       if (!hasAfterPage(project)) {

@@ -84,7 +84,7 @@ button[aria-pressed="true"],
   height: 100dvh;
   width: 100vw;
   display: grid;
-  grid-template-columns: 140px minmax(0, 1fr);
+  grid-template-columns: 100px minmax(0, 1fr);
   min-width: 0;
   overflow: hidden;
 }
@@ -813,7 +813,7 @@ button[aria-pressed="true"],
 
 @media (max-width: 720px) {
   .app {
-    grid-template-columns: 108px minmax(0, 1fr);
+    grid-template-columns: 100px minmax(0, 1fr);
   }
 
   .palette-btn .label {
