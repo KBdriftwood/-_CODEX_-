@@ -148,6 +148,7 @@
   }
 
   function newDrawing() {
+    if (!window.confirm("現在の作図を削除して、新規作成しますか？")) return;
     pushHistory();
     const name = project.meta?.name ?? DEFAULT_SHEET_NAME;
     project = emptyDocument();
